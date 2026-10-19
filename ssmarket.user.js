@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SSMarket
 // @namespace    http://tampermonkey.net/
-// @version      2.0.0
+// @version      2.1.0
 // @description  Сортировка выдачи Ozon и Wildberries по числу отзывов и оценок
 // @author       Sulimko
 // @match        https://www.ozon.ru/*
@@ -15,7 +15,7 @@
 (function () {
     'use strict';
 
-    const VERSION = '2.0.0';
+    const VERSION = '2.1.0';
     const SCROLL_PRESETS = [3, 5, 10];
     const MAX_SCROLL_SECONDS = 180;
     const URL_POLL_MS = 500;
@@ -95,13 +95,56 @@
         return value.toLocaleString('ru-RU');
     }
 
-    function goodsWord(count) {
+    // forms: [1 товар, 2 товара, 5 товаров]
+    function plural(count, forms) {
         const mod10 = count % 10;
         const mod100 = count % 100;
         if (mod10 === 1 && mod100 !== 11) {
-            return 'товар';
+            return forms[0];
         }
-        return mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? 'товара' : 'товаров';
+        return mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? forms[1] : forms[2];
+    }
+
+    const GOODS = ['товар', 'товара', 'товаров'];
+
+    function counted(count, forms) {
+        return `${formatNumber(count)} ${plural(count, forms)}`;
+    }
+
+    // A strip on the page itself (between sorted and fresh cards, or under the sorted list) with one action.
+    function createPageBanner() {
+        const node = document.createElement('div');
+        node.dataset.ssmBanner = '1';
+        node.style.cssText = 'grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 14px;'
+            + ' flex-wrap: wrap; margin: 12px 0 20px; padding: 12px 16px; border-radius: 14px;'
+            + ' font: 600 14px/1.35 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; color: #1b1d21;';
+        node.innerHTML = '<span></span><button type="button" style="border: none; border-radius: 10px; height: 34px; padding: 0 14px;'
+            + ' font: inherit; color: #fff; cursor: pointer;"></button>';
+        let onClick = null;
+        node.querySelector('button').addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClick();
+        });
+        return {
+            node,
+            set({ text, action, fresh, handler }) {
+                onClick = handler;
+                const [label, button] = node.children;
+                if (label.textContent !== text) {
+                    label.textContent = text;
+                }
+                if (button.textContent !== action) {
+                    button.textContent = action;
+                }
+                const background = fresh ? '#fff6e0' : '#f5f6f8';
+                if (node.style.background !== background) {
+                    node.style.background = background;
+                    node.style.boxShadow = fresh ? 'inset 0 0 0 1px #ffb020' : 'none';
+                }
+                button.style.background = site.accent;
+            }
+        };
     }
 
     // ---------------------------------------------------------------- Ozon
@@ -278,6 +321,14 @@
             id: 'ozon',
             name: 'Ozon',
             countWord: 'отзывам',
+            countForms: ['отзыв', 'отзыва', 'отзывов'],
+            // The sorted list ends with a strip: fresh cards to fold in, or a way to load more.
+            placeBanner(node) {
+                const root = document.getElementById(ROOT_ID);
+                if (root && node.parentElement !== root) {
+                    root.appendChild(node);
+                }
+            },
             accent: '#005bff',
             accentSoft: '#e6efff',
             isListing: () => Boolean(paginator()) && resultGrids().length > 0,
@@ -309,7 +360,7 @@
                 }
             },
             keySignature: () => resultGrids().flatMap(grid => tilesOf(grid).map(keyOf)).join(','),
-            isOwnNode: node => Boolean(node.closest?.(`#${ROOT_ID}`)) || node.id === ROOT_ID,
+            isOwnNode: node => Boolean(node.closest?.(`#${ROOT_ID}, [data-ssm-banner]`)),
             // Ozon may re-render the column under the sorted list: drop a sorted list that lost its place.
             heal() {
                 if (!hiddenPaginator) {
@@ -378,7 +429,7 @@
                 return;
             }
             Array.from(root.children).forEach(child => {
-                if (!child.style.order) {
+                if (!child.style.order && !child.dataset.ssmBanner) {
                     child.style.order = String(isCard(child) ? TAIL_ORDER : TAIL_ORDER * 2);
                 }
             });
@@ -388,8 +439,21 @@
             id: 'wb',
             name: 'WB',
             countWord: 'оценкам',
-            accent: '#a01ad9',
-            accentSoft: '#f5e8fc',
+            countForms: ['оценка', 'оценки', 'оценок'],
+            // Colours of the site as of 19.10.2026 (buttons rgb(167, 58, 253)).
+            accent: '#a73afd',
+            accentSoft: '#f4e7ff',
+            // The strip sits between the sorted cards and the ones loaded after the sort.
+            placeBanner(node) {
+                const root = list();
+                if (!root) {
+                    return;
+                }
+                node.style.order = String(TAIL_ORDER - 1);
+                if (node.parentElement !== root) {
+                    root.appendChild(node);
+                }
+            },
             isListing: () => cards().length > 0,
             isSorted: () => Boolean(list()?.dataset[SORTED_ATTR]),
             capture() {
@@ -415,7 +479,9 @@
                     return null;
                 }
                 Array.from(root.children).forEach(child => {
-                    child.style.order = '';
+                    if (!child.dataset.ssmBanner) {
+                        child.style.order = '';
+                    }
                 });
                 items.forEach((item, index) => {
                     item.card.style.order = String(index + 1);
@@ -435,7 +501,7 @@
                 delete root.dataset[SORTED_ATTR];
             },
             keySignature: () => cards().map(keyOf).join(','),
-            isOwnNode: () => false,
+            isOwnNode: node => Boolean(node.closest?.('[data-ssm-banner]')),
             heal: () => false
         };
     }
@@ -452,11 +518,12 @@
     const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
     const ICON_PLAY = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
     const ICON_UNDO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/></svg>';
-    const ICON_CHECK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-    const ICON_INFO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 11v6M12 7.5v.01"/></svg>';
-    const FAB_SIZE = 44;
+    const FAB_SIZE = 40;
     const EDGE_GAP = 12;
-    const PANEL_WIDTH = 300;
+    const PANEL_WIDTH = 256;
+    // Amber marks "new cards loaded below, not sorted yet": readable next to both site accents.
+    const FRESH = '#ffb020';
+    const FRESH_SOFT = '#fff6e0';
     const DEFAULT_OFFSET = { right: 24, bottom: 68 };
 
     // Look: board design/boards/widget/2026-10-19/approved/01-pristine-popover.png.
@@ -468,56 +535,59 @@
             position: fixed; width: ${FAB_SIZE}px; height: ${FAB_SIZE}px; border-radius: 50%;
             border: none; padding: 0; cursor: grab; touch-action: none;
             display: grid; place-items: center; color: #fff; background: var(--accent);
-            box-shadow: 0 6px 18px rgba(0, 0, 0, .18); transition: transform .15s ease, box-shadow .15s ease;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, .18); transition: transform .15s ease, box-shadow .15s ease;
         }
-        .fab:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(0, 0, 0, .22); }
+        .fab svg { width: 18px; height: 18px; }
+        .fab:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0, 0, 0, .22); }
         .fab:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
         .fab.dragging { cursor: grabbing; transform: scale(1.06); transition: none; }
+        .fab.fresh { box-shadow: 0 0 0 3px ${FRESH}, 0 4px 14px rgba(0, 0, 0, .18); }
         .fab .badge {
-            position: absolute; top: -5px; right: -5px; min-width: 22px; height: 22px; padding: 0 6px;
-            border-radius: 11px; background: #fff; color: var(--accent); font-size: 11px; font-weight: 700;
-            display: none; place-items: center; box-shadow: 0 1px 4px rgba(0, 0, 0, .2);
+            position: absolute; top: -6px; right: -8px; min-width: 20px; height: 20px; padding: 0 5px;
+            border-radius: 10px; background: #fff; color: #5f6670; font-size: 11px; font-weight: 700; white-space: nowrap;
+            display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0, 0, 0, .22);
         }
-        .fab.sorted .badge, .fab.busy .badge { display: grid; }
+        .fab .badge:empty { display: none; }
+        .fab.sorted .badge, .fab.busy .badge { color: var(--accent); }
+        .fab.fresh .badge { background: ${FRESH}; color: #1b1d21; }
         .fab svg.ring { position: absolute; inset: -5px; width: ${FAB_SIZE + 10}px; height: ${FAB_SIZE + 10}px; transform: rotate(-90deg); display: none; }
         .fab.busy svg.ring { display: block; }
         .ring circle { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; opacity: .25; }
         .ring circle.progress { opacity: 1; transition: stroke-dashoffset .28s linear; }
         .panel {
-            position: fixed; width: ${PANEL_WIDTH}px; padding: 16px; border-radius: 18px; background: #fff; color: #1b1d21;
-            box-shadow: 0 18px 48px rgba(16, 24, 40, .16), 0 0 0 1px rgba(16, 24, 40, .06);
-            display: none; flex-direction: column; gap: 14px; font-size: 13px; overflow-y: auto;
+            position: fixed; width: ${PANEL_WIDTH}px; padding: 12px; border-radius: 16px; background: #fff; color: #1b1d21;
+            box-shadow: 0 14px 40px rgba(16, 24, 40, .16), 0 0 0 1px rgba(16, 24, 40, .06);
+            display: none; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.35; overflow-y: auto;
         }
         .panel.open { display: flex; }
         .panel > * { flex-shrink: 0; }
-        .caret { position: fixed; width: 12px; height: 12px; background: #fff; transform: rotate(45deg); display: none; }
+        .caret { position: fixed; width: 10px; height: 10px; background: #fff; transform: rotate(45deg); display: none; }
         .caret.open { display: block; }
         .caret.above { box-shadow: 1px 1px 0 rgba(16, 24, 40, .06); }
         .caret.below { box-shadow: -1px -1px 0 rgba(16, 24, 40, .06); }
-        .head { display: flex; align-items: center; gap: 8px; }
-        .title { font-weight: 800; font-size: 16px; letter-spacing: -.01em; }
-        .chip { padding: 3px 9px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
-        .ver { color: #9aa0a8; font-size: 12px; margin-left: auto; }
-        .icon-btn { border: none; background: transparent; color: #5f6670; cursor: pointer; padding: 3px; border-radius: 8px; display: grid; }
+        .head { display: flex; align-items: center; gap: 6px; }
+        .title { font-weight: 800; font-size: 14px; letter-spacing: -.01em; }
+        .chip { padding: 2px 7px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; }
+        .ver { color: #9aa0a8; font-size: 11px; margin-left: auto; }
+        .icon-btn { border: none; background: transparent; color: #5f6670; cursor: pointer; padding: 2px; border-radius: 6px; display: grid; }
         .icon-btn:hover { color: #1b1d21; background: #f2f3f5; }
-        .status { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: #f5f6f8; line-height: 1.4; color: #1b1d21; }
-        .status-icon { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: #c4c8ce; margin-top: 1px; }
-        .status.sorted .status-icon { background: var(--accent); }
-        .status.busy .status-icon { background: none; border: 3px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; }
-        .status.busy .status-icon svg { display: none; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .status-text b { font-weight: 700; }
+        .status { padding: 8px 10px; border-radius: 10px; background: #f5f6f8; }
+        .status.fresh { background: ${FRESH_SOFT}; box-shadow: inset 0 0 0 1px ${FRESH}; }
+        .status-main { font-weight: 600; text-wrap: pretty; }
+        .status-main b { font-weight: 800; }
+        .status-sub { color: #5f6670; font-size: 12px; margin-top: 1px; text-wrap: pretty; }
         .primary {
-            border: none; border-radius: 12px; height: 44px; padding: 0 14px; background: var(--accent); color: #fff;
-            font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+            border: none; border-radius: 10px; height: 36px; padding: 0 12px; background: var(--accent); color: #fff;
+            font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
         }
+        .primary svg { width: 16px; height: 16px; }
         .primary:hover { filter: brightness(1.07); }
-        .label { color: #3a3f47; font-size: 13px; margin-bottom: 8px; }
-        .row { display: flex; gap: 8px; align-items: center; }
-        .seg { flex: 1; display: flex; height: 40px; padding: 3px; gap: 2px; border: 1px solid #e3e5e8; border-radius: 12px; background: #fff; }
+        .label { color: #5f6670; font-size: 12px; margin-bottom: 6px; }
+        .row { display: flex; gap: 6px; align-items: center; }
+        .seg { flex: 1; display: flex; height: 32px; padding: 2px; gap: 2px; border: 1px solid #e3e5e8; border-radius: 10px; background: #fff; }
         .preset, .custom {
-            flex: 1; border: none; border-radius: 9px; background: transparent; color: #1b1d21;
-            font-size: 13px; font-weight: 600; cursor: pointer; min-width: 0;
+            flex: 1; border: none; border-radius: 8px; background: transparent; color: #1b1d21;
+            font-size: 12px; font-weight: 600; cursor: pointer; min-width: 0; white-space: nowrap;
         }
         .preset:hover { background: #f2f3f5; }
         .preset.active { background: var(--accent); color: #fff; }
@@ -526,25 +596,28 @@
         .custom input::-webkit-outer-spin-button, .custom input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .custom input::placeholder { color: #5f6670; }
         .custom:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
-        .play { flex: none; width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--accent-soft); color: var(--accent); cursor: pointer; display: grid; place-items: center; }
+        .play { flex: none; width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--accent-soft); color: var(--accent); cursor: pointer; display: grid; place-items: center; }
+        .play svg { width: 14px; height: 14px; }
         .play:hover { background: var(--accent); color: #fff; }
-        .secondary {
-            border: 1px solid #e3e5e8; border-radius: 12px; height: 44px; padding: 0 14px; background: #fff; color: #1b1d21;
-            font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+        .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .undo {
+            border: 1px solid #e3e5e8; border-radius: 8px; height: 28px; padding: 0 9px; background: #fff; color: #1b1d21;
+            font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap;
         }
-        .secondary:hover:not(:disabled) { background: #f7f8fa; }
-        .secondary:disabled { color: #b7bcc3; cursor: default; }
-        .toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; color: #1b1d21; line-height: 1.3; }
+        .undo svg { width: 14px; height: 14px; }
+        .undo:hover:not(:disabled) { background: #f7f8fa; }
+        .undo:disabled { color: #b7bcc3; cursor: default; }
+        .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; color: #1b1d21; font-size: 12px; white-space: nowrap; }
         .toggle input { display: none; }
-        .switch { width: 38px; height: 22px; border-radius: 11px; background: #d5d8dd; position: relative; flex: none; transition: background .15s; }
-        .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+        .switch { width: 30px; height: 18px; border-radius: 9px; background: #d5d8dd; position: relative; flex: none; transition: background .15s; }
+        .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
         .toggle input:checked + .switch { background: var(--accent); }
-        .toggle input:checked + .switch::after { transform: translateX(16px); }
+        .toggle input:checked + .switch::after { transform: translateX(12px); }
         .busy-only { display: none; }
         .panel.busy .busy-only { display: flex; }
         .panel.busy .idle-only { display: none; }
         .toast {
-            position: fixed; padding: 9px 14px; border-radius: 10px; background: #1b1d21; color: #fff; font-size: 13px;
+            position: fixed; padding: 8px 12px; border-radius: 10px; background: #1b1d21; color: #fff; font-size: 12px;
             opacity: 0; pointer-events: none; transition: opacity .2s; max-width: ${PANEL_WIDTH}px;
         }
         .toast.show { opacity: .95; }
@@ -568,11 +641,11 @@
                     <span class="ver">v${VERSION}</span>
                     <button class="icon-btn close" type="button" aria-label="Закрыть">${ICON_CLOSE}</button>
                 </div>
-                <div class="status" role="status"><span class="status-icon"></span><span class="status-text"></span></div>
-                <button class="primary idle-only sort" type="button">${ICON_SORT}<span>Сортировать по ${site.countWord}</span></button>
+                <div class="status" role="status"><div class="status-main"></div><div class="status-sub"></div></div>
+                <button class="primary idle-only sort" type="button">${ICON_SORT}<span class="sort-label"></span></button>
                 <button class="primary busy-only stop" type="button">Хватит, сортировать</button>
                 <div class="idle-only">
-                    <div class="label">Подгрузить ещё и отсортировать</div>
+                    <div class="label">Догрузить и отсортировать</div>
                     <div class="row">
                         <div class="seg">
                             ${SCROLL_PRESETS.map(seconds => `<button class="preset" type="button" data-seconds="${seconds}">${seconds} с</button>`).join('')}
@@ -583,8 +656,10 @@
                         <button class="play" type="button" aria-label="Листать своё число секунд и сортировать">${ICON_PLAY}</button>
                     </div>
                 </div>
-                <button class="secondary undo idle-only" type="button">${ICON_UNDO}<span>Как было</span></button>
-                <label class="toggle idle-only"><input type="checkbox" class="keep"><span class="switch"></span><span>Держать сортировку при смене фильтров</span></label>
+                <div class="foot idle-only">
+                    <button class="undo" type="button" title="Вернуть порядок сайта">${ICON_UNDO}<span>Как было</span></button>
+                    <label class="toggle" title="Сортировать снова после смены фильтра, категории, поиска и при возврате назад"><input type="checkbox" class="keep"><span class="switch"></span><span>Держать</span></label>
+                </div>
             </div>
             <div class="caret"></div>
             <div class="toast" role="status"></div>
@@ -597,8 +672,9 @@
         const fab = $('.fab');
         const panel = $('.panel');
         const status = $('.status');
-        const statusIcon = $('.status-icon');
-        const statusText = $('.status-text');
+        const statusMain = $('.status-main');
+        const statusSub = $('.status-sub');
+        const sortLabel = $('.sort-label');
         const badge = $('.badge');
         const toastNode = $('.toast');
         const caret = $('.caret');
@@ -606,6 +682,7 @@
         const keepInput = $('.keep');
         const progress = $('.ring .progress');
         const ringLength = 2 * Math.PI * 25;
+        let busy = false;
         progress.style.strokeDasharray = String(ringLength);
 
         const positionKey = `position:${site.id}`;
@@ -788,18 +865,21 @@
                     setOpen(false);
                 }
             },
-            setStatus(html, kind = 'idle') {
-                statusText.innerHTML = html;
-                status.className = `status ${kind}`;
-                statusIcon.innerHTML = kind === 'sorted' ? ICON_CHECK : ICON_INFO;
-            },
-            setSorted(count) {
-                fab.classList.toggle('sorted', Boolean(count));
-                badge.textContent = count ? String(count) : '';
-                $('.undo').disabled = !count;
+            // One call draws the whole state: panel texts, the badge on the button and its colour.
+            render({ main, sub = '', tone = 'idle', badgeText = '', sortText, sorted = false }) {
+                statusMain.innerHTML = main;
+                statusSub.innerHTML = sub;
+                status.className = `status ${tone === 'fresh' ? 'fresh' : ''}`;
+                sortLabel.textContent = sortText;
+                $('.undo').disabled = !sorted;
+                fab.classList.toggle('sorted', sorted);
+                fab.classList.toggle('fresh', tone === 'fresh');
+                if (!busy) {
+                    badge.textContent = badgeText;
+                }
             },
             setBusy(remainingMs, totalMs) {
-                const busy = remainingMs !== null;
+                busy = remainingMs !== null;
                 fab.classList.toggle('busy', busy);
                 panel.classList.toggle('busy', busy);
                 if (busy) {
@@ -826,39 +906,81 @@
     let listingGen = 0;
     // Set while the site replaces the listing; a scroll started meanwhile waits for it.
     let listingWait = null;
+    // Generation of the listing wait that shows "Сайт обновляет выдачу"; live refreshes must not overwrite it.
+    // Any newer action bumps listingGen and so lifts the block.
+    let settlingGen = -1;
     let currentListing = listingKey();
     let lastKeySignature = '';
 
-    // Listings sorted in this tab: coming back to one (product page, then Back) sorts it again.
-    const sortedListings = {
-        read: () => new Set(JSON.parse(sessionStorage.getItem('ssmarket:sorted') || '[]')),
-        add(key) {
-            sessionStorage.setItem('ssmarket:sorted', JSON.stringify([...this.read().add(key)]));
-        },
-        remove(key) {
-            const keys = this.read();
-            keys.delete(key);
-            sessionStorage.setItem('ssmarket:sorted', JSON.stringify([...keys]));
-        },
-        has: key => sortedListings.read().has(key)
+    // "Sorting is on" for this tab: set by a sort, cleared by "Как было". With "Держать" on, every next listing
+    // in the tab (filter, category, search, Back) is sorted too.
+    const sortingOn = {
+        get: () => sessionStorage.getItem('ssmarket:on') === '1',
+        set: on => (on ? sessionStorage.setItem('ssmarket:on', '1') : sessionStorage.removeItem('ssmarket:on'))
     };
+    const banner = createPageBanner();
 
     const actions = {
         refresh() {
-            if (scrollRun) {
+            if (scrollRun || settlingGen === listingGen) {
                 return;
             }
+            const sortText = `Сортировать по ${site.countWord}`;
             if (site.isSorted() && lastResult) {
                 const fresh = site.unsortedCount();
-                const freshNote = fresh > 0
-                    ? ` Подгружено ещё <b>${formatNumber(fresh)}</b> - нажмите "Сортировать", чтобы добавить.`
-                    : '';
-                ui.setStatus(`Отсортировано <b>${formatNumber(lastResult.count)}</b> ${goodsWord(lastResult.count)} по ${site.countWord}. Больше всего - <b>${formatNumber(lastResult.top)}</b>.${freshNote}`, 'sorted');
-            } else {
-                site.capture();
-                ui.setStatus(`Загружено <b>${formatNumber(site.visibleCount())}</b> ${goodsWord(site.visibleCount())}. Порядок сайта.`);
+                if (fresh > 0) {
+                    ui.render({
+                        main: `Ниже ещё <b>+${formatNumber(fresh)}</b> новых`,
+                        sub: `Не отсортированы. Наверху ${counted(lastResult.count, GOODS)} по ${site.countWord}.`,
+                        tone: 'fresh',
+                        badgeText: `+${fresh}`,
+                        sortText: `Досортировать +${formatNumber(fresh)}`,
+                        sorted: true
+                    });
+                    banner.set({
+                        text: `Ниже ещё ${counted(fresh, GOODS)}, они не отсортированы`,
+                        action: 'Досортировать',
+                        fresh: true,
+                        handler: () => actions.sort()
+                    });
+                    site.placeBanner(banner.node);
+                } else {
+                    ui.render({
+                        main: `Отсортировано <b>${counted(lastResult.count, GOODS)}</b>`,
+                        sub: `Наверху ${counted(lastResult.top, site.countForms)}`,
+                        badgeText: String(lastResult.count),
+                        sortText,
+                        sorted: true
+                    });
+                    if (site.id === 'ozon') {
+                        const seconds = store.get('lastSeconds', 0) || SCROLL_PRESETS[1];
+                        banner.set({
+                            text: `Это ${counted(lastResult.count, GOODS)} по ${site.countWord}`,
+                            action: `Догрузить ещё (${seconds} с)`,
+                            fresh: false,
+                            handler: () => actions.scrollAndSort(seconds)
+                        });
+                        site.placeBanner(banner.node);
+                    } else {
+                        banner.node.remove();
+                    }
+                }
+                return;
             }
-            ui.setSorted(site.isSorted() && lastResult ? lastResult.count : 0);
+            banner.node.remove();
+            site.capture();
+            const loaded = site.visibleCount();
+            ui.render({
+                main: `Загружено <b>${counted(loaded, GOODS)}</b>`,
+                sub: 'Сейчас порядок сайта',
+                badgeText: loaded ? String(loaded) : '',
+                sortText
+            });
+        },
+
+        // Panel state while the script works on its own: scrolling, waiting for the site.
+        showBusy(main, sub = '') {
+            ui.render({ main, sub, tone: 'busy', sortText: '' });
         },
 
         // `auto` - started by the script, not a click; `late` - folding in cards that were already on their way,
@@ -878,7 +1000,7 @@
             if (!late) {
                 lastSortAt = Date.now();
             }
-            sortedListings.add(currentListing);
+            sortingOn.set(true);
             actions.refresh();
             if (scroll) {
                 const top = result.anchor.getBoundingClientRect().top + window.scrollY - 140;
@@ -892,7 +1014,7 @@
                 ? lastResult.anchor.getBoundingClientRect().top + window.scrollY - 140
                 : null;
             site.restore();
-            sortedListings.remove(currentListing);
+            sortingOn.set(false);
             lastResult = null;
             actions.refresh();
             if (anchorTop !== null) {
@@ -907,7 +1029,7 @@
             const run = { stop: false, cancelled: false };
             scrollRun = run;
             if (listingWait) {
-                ui.setStatus('Жду, пока сайт обновит выдачу...', 'busy');
+                actions.showBusy('Жду новую выдачу', 'Сайт ещё загружает карточки');
                 await listingWait;
             }
             listingGen += 1;
@@ -915,7 +1037,6 @@
             lastResult = null;
             const totalMs = seconds * 1000;
             const startedAt = Date.now();
-            ui.setSorted(0);
             while (!run.stop && Date.now() - startedAt < totalMs) {
                 // At the bottom a scroll does not move and fires no event, so the site never asks for the next
                 // page: step back to make the following step a real scroll.
@@ -924,7 +1045,7 @@
                 site.capture();
                 const remaining = Math.max(0, totalMs - (Date.now() - startedAt));
                 ui.setBusy(remaining, totalMs);
-                ui.setStatus(`Листаю выдачу, ещё <b>${Math.ceil(remaining / 1000)} с</b>. Загружено <b>${formatNumber(site.visibleCount())}</b>.`, 'busy');
+                actions.showBusy(`Листаю, ещё <b>${Math.ceil(remaining / 1000)} с</b>`, `Загружено ${counted(site.visibleCount(), GOODS)}`);
                 await wait(280);
             }
             scrollRun = null;
@@ -964,12 +1085,13 @@
 
         async settleListing(previousSignature) {
             const gen = ++listingGen;
-            const wasSorted = site.isSorted() || Boolean(scrollRun) || sortedListings.has(currentListing);
+            settlingGen = gen;
+            const wasSorted = site.isSorted() || Boolean(scrollRun) || sortingOn.get();
             actions.cancelScroll();
             site.restore();
             lastResult = null;
-            ui.setSorted(0);
-            ui.setStatus('Сайт обновляет выдачу...', 'busy');
+            banner.node.remove();
+            actions.showBusy('Сайт обновляет выдачу', wasSorted && ui.keepSorted() ? 'Отсортирую, когда загрузится' : '');
             const startedAt = Date.now();
             const deadline = startedAt + RESULTS_WAIT_MS;
             let signature = previousSignature;
@@ -993,6 +1115,7 @@
             if (gen !== listingGen) {
                 return;
             }
+            settlingGen = -1;
             site.reset();
             site.capture();
             if (scrollRun) {
@@ -1016,10 +1139,7 @@
         captureTimer = setTimeout(() => {
             captureTimer = 0;
             site.capture();
-            if (!site.isSorted() || !site.unsortedCount()) {
-                return;
-            }
-            if (Date.now() - lastSortAt < LATE_CARDS_MS) {
+            if (site.isSorted() && site.unsortedCount() && Date.now() - lastSortAt < LATE_CARDS_MS) {
                 actions.sort({ scroll: false, auto: true, late: true });
             } else {
                 actions.refresh();
@@ -1044,7 +1164,7 @@
     ui.setVisible(site.isListing());
     site.capture();
     actions.refresh();
-    if (ui.keepSorted() && sortedListings.has(currentListing)) {
+    if (ui.keepSorted() && sortingOn.get()) {
         actions.onListingChange('');
     }
 })();
