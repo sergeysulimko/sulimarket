@@ -21,6 +21,9 @@
     const URL_POLL_MS = 500;
     const RESULTS_WAIT_MS = 12000;
     const RESULTS_QUIET_MS = 900;
+    // The site may swap the cards before it changes the address; then no change is ever seen, and the
+    // listing counts as settled after this long.
+    const RESULTS_UNCHANGED_MS = 2500;
     // Pages the site was already fetching when the sort ran are folded into the sort for this long.
     const LATE_CARDS_MS = 4000;
     // Query params the sites rewrite while scrolling; a change in them is not a new listing.
@@ -158,8 +161,14 @@
             grids.forEach(grid => tilesOf(grid).forEach(tile => {
                 const key = keyOf(tile);
                 const known = cache.get(key);
+                // Re-snapshot only when the card changed (images loaded, heart toggled, price updated).
+                const look = `${tile.textContent.length}|${Array.from(tile.querySelectorAll('img'), img => img.currentSrc).join()}|${tile.innerHTML.length}`;
+                if (known && known.look === look) {
+                    return;
+                }
                 cache.set(key, {
                     key,
+                    look,
                     count: Math.max(known?.count || 0, readCount(tile, REVIEWS)),
                     rating: readRating(leafTexts(tile)) || known?.rating || 0,
                     seen: known ? known.seen : cache.size,
@@ -199,19 +208,39 @@
             }
             event.preventDefault();
             event.stopPropagation();
-            const live = findLiveTile(tile.dataset.ssmKey);
+            const key = tile.dataset.ssmKey;
+            const live = findLiveTile(key);
             const target = live && nodeAt(live, nodePath(tile, control));
-            if (!target) {
-                ui.toast('Сайт выгрузил эту карточку - откройте товар');
+            // The live card may have changed shape since the snapshot (cart button became a -/+ stepper).
+            const same = target && target.tagName === control.tagName
+                && target.getAttribute('aria-label') === control.getAttribute('aria-label')
+                && target.textContent.trim() === control.textContent.trim();
+            if (!same) {
+                ui.toast(live ? 'Карточка изменилась - нажмите ещё раз' : 'Сайт выгрузил эту карточку - откройте товар');
+                if (live) {
+                    syncTile(tile, live, key);
+                }
                 return;
             }
             target.click();
-            setTimeout(() => {
-                const fresh = live.cloneNode(true);
-                prepareTile(fresh, tile.dataset.ssmKey);
-                tile.replaceWith(fresh);
-                cache.get(tile.dataset.ssmKey).snapshot = live.cloneNode(true);
-            }, 600);
+            // Follow the live card for a few seconds: the site answers at network speed.
+            const observer = new MutationObserver(() => syncTile(tile.isConnected ? tile : null, live, key));
+            observer.observe(live, { childList: true, subtree: true, attributes: true, characterData: true });
+            setTimeout(() => observer.disconnect(), 3000);
+        }
+
+        function syncTile(tile, live, key) {
+            const current = tile && tile.isConnected ? tile : document.querySelector(`#${ROOT_ID} [data-ssm-key="${key}"]`);
+            if (!current) {
+                return;
+            }
+            const fresh = live.cloneNode(true);
+            prepareTile(fresh, key);
+            current.replaceWith(fresh);
+            const known = cache.get(key);
+            if (known) {
+                known.snapshot = live.cloneNode(true);
+            }
         }
 
         function prepareTile(tile, key) {
@@ -279,8 +308,20 @@
                     hiddenPaginator = null;
                 }
             },
-            keySet: () => new Set(resultGrids().flatMap(grid => tilesOf(grid).map(keyOf))),
-            observeRoot: () => document.body
+            keySignature: () => resultGrids().flatMap(grid => tilesOf(grid).map(keyOf)).join(','),
+            isOwnNode: node => Boolean(node.closest?.(`#${ROOT_ID}`)) || node.id === ROOT_ID,
+            // Ozon may re-render the column under the sorted list: drop a sorted list that lost its place.
+            heal() {
+                if (!hiddenPaginator) {
+                    return false;
+                }
+                const root = document.getElementById(ROOT_ID);
+                if (root && hiddenPaginator.isConnected && paginator() === hiddenPaginator) {
+                    return false;
+                }
+                this.restore();
+                return true;
+            }
         };
     }
 
@@ -393,8 +434,9 @@
                 });
                 delete root.dataset[SORTED_ATTR];
             },
-            keySet: () => new Set(cards().map(keyOf)),
-            observeRoot: () => document.body
+            keySignature: () => cards().map(keyOf).join(','),
+            isOwnNode: () => false,
+            heal: () => false
         };
     }
 
@@ -444,15 +486,14 @@
         .panel {
             position: fixed; width: ${PANEL_WIDTH}px; padding: 16px; border-radius: 18px; background: #fff; color: #1b1d21;
             box-shadow: 0 18px 48px rgba(16, 24, 40, .16), 0 0 0 1px rgba(16, 24, 40, .06);
-            display: none; flex-direction: column; gap: 14px; font-size: 13px;
+            display: none; flex-direction: column; gap: 14px; font-size: 13px; overflow-y: auto;
         }
         .panel.open { display: flex; }
-        .panel::after {
-            content: ""; position: absolute; left: var(--caret-x, 50%); width: 12px; height: 12px; background: #fff;
-            transform: translateX(-50%) rotate(45deg); box-shadow: 1px 1px 0 rgba(16, 24, 40, .06);
-        }
-        .panel.above::after { bottom: -6px; }
-        .panel.below::after { top: -6px; box-shadow: -1px -1px 0 rgba(16, 24, 40, .06); }
+        .panel > * { flex-shrink: 0; }
+        .caret { position: fixed; width: 12px; height: 12px; background: #fff; transform: rotate(45deg); display: none; }
+        .caret.open { display: block; }
+        .caret.above { box-shadow: 1px 1px 0 rgba(16, 24, 40, .06); }
+        .caret.below { box-shadow: -1px -1px 0 rgba(16, 24, 40, .06); }
         .head { display: flex; align-items: center; gap: 8px; }
         .title { font-weight: 800; font-size: 16px; letter-spacing: -.01em; }
         .chip { padding: 3px 9px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
@@ -545,6 +586,7 @@
                 <button class="secondary undo idle-only" type="button">${ICON_UNDO}<span>Как было</span></button>
                 <label class="toggle idle-only"><input type="checkbox" class="keep"><span class="switch"></span><span>Держать сортировку при смене фильтров</span></label>
             </div>
+            <div class="caret"></div>
             <div class="toast" role="status"></div>
         `;
         host.style.setProperty('--accent', site.accent);
@@ -559,6 +601,7 @@
         const statusText = $('.status-text');
         const badge = $('.badge');
         const toastNode = $('.toast');
+        const caret = $('.caret');
         const customInput = $('.custom input');
         const keepInput = $('.keep');
         const progress = $('.ring .progress');
@@ -583,10 +626,6 @@
             return fabBox().x + FAB_SIZE / 2 > document.documentElement.clientWidth / 2;
         }
 
-        function onLowerHalf() {
-            return fabBox().y + FAB_SIZE / 2 > window.innerHeight / 2;
-        }
-
         function placeFab() {
             const { x, y } = fabBox();
             fab.style.left = `${x}px`;
@@ -600,22 +639,33 @@
             const wanted = onRightHalf() ? x + FAB_SIZE - PANEL_WIDTH : x;
             const left = Math.max(EDGE_GAP, Math.min(wanted, document.documentElement.clientWidth - PANEL_WIDTH - EDGE_GAP));
             panel.style.left = `${left}px`;
-            panel.style.setProperty('--caret-x', `${Math.min(PANEL_WIDTH - 20, Math.max(20, x + FAB_SIZE / 2 - left))}px`);
-            panel.classList.toggle('above', onLowerHalf());
-            panel.classList.toggle('below', !onLowerHalf());
-            if (onLowerHalf()) {
+            // Open towards the larger measured space; a short screen scrolls the panel instead of cutting it.
+            const spaceAbove = y - 10 - EDGE_GAP;
+            const spaceBelow = window.innerHeight - (y + FAB_SIZE + 10) - EDGE_GAP;
+            const above = spaceAbove >= spaceBelow;
+            caret.classList.toggle('above', above);
+            caret.classList.toggle('below', !above);
+            caret.style.left = `${x + FAB_SIZE / 2 - 6}px`;
+            caret.style.top = `${above ? y - 16 : y + FAB_SIZE + 4}px`;
+            panel.style.maxHeight = `${Math.max(spaceAbove, spaceBelow)}px`;
+            if (above) {
                 panel.style.top = '';
                 panel.style.bottom = `${window.innerHeight - y + 10}px`;
             } else {
                 panel.style.bottom = '';
                 panel.style.top = `${y + FAB_SIZE + 10}px`;
             }
-            toastNode.style.left = panel.style.left;
-            toastNode.style.top = onLowerHalf() ? `${y - 50}px` : `${y + FAB_SIZE + 10}px`;
+            // The toast goes to the far edge of the open panel, or next to the button when it is closed.
+            toastNode.style.left = `${left}px`;
+            const open = panel.classList.contains('open');
+            const panelHeight = open ? panel.offsetHeight : 0;
+            const toastTop = above ? y - 10 - panelHeight - 48 : y + FAB_SIZE + 10 + panelHeight + 8;
+            toastNode.style.top = `${Math.max(EDGE_GAP, Math.min(toastTop, window.innerHeight - 48))}px`;
         }
 
         function setOpen(open) {
             panel.classList.toggle('open', open);
+            caret.classList.toggle('open', open);
             fab.setAttribute('aria-expanded', String(open));
             if (open) {
                 placePanel();
@@ -625,11 +675,25 @@
 
         let drag = null;
         fab.addEventListener('pointerdown', event => {
+            if (event.button !== 0) {
+                return;
+            }
             drag = { startX: event.clientX, startY: event.clientY, origin: fabBox(), moved: false };
             fab.setPointerCapture(event.pointerId);
         });
+        const endDrag = () => {
+            drag = null;
+            fab.classList.remove('dragging');
+        };
+        fab.addEventListener('pointercancel', endDrag);
+        fab.addEventListener('lostpointercapture', () => {
+            if (drag?.moved) {
+                store.set(positionKey, position);
+            }
+            endDrag();
+        });
         fab.addEventListener('pointermove', event => {
-            if (!drag) {
+            if (!drag || !event.buttons) {
                 return;
             }
             const dx = event.clientX - drag.startX;
@@ -647,10 +711,12 @@
             };
             placeFab();
         });
-        fab.addEventListener('pointerup', () => {
-            const wasDrag = drag?.moved;
-            drag = null;
-            fab.classList.remove('dragging');
+        fab.addEventListener('pointerup', event => {
+            if (!drag || event.button !== 0) {
+                return;
+            }
+            const wasDrag = drag.moved;
+            endDrag();
             if (wasDrag) {
                 store.set(positionKey, position);
                 return;
@@ -744,6 +810,7 @@
             keepSorted: () => keepInput.checked,
             toast(text) {
                 toastNode.textContent = text;
+                placePanel();
                 toastNode.classList.add('show');
                 clearTimeout(toastTimer);
                 toastTimer = setTimeout(() => toastNode.classList.remove('show'), 2600);
@@ -755,6 +822,26 @@
     let scrollRun = null;
     let lastResult = null;
     let lastSortAt = 0;
+    // Bumped by every listing change and every user action, so an older wait for results gives up.
+    let listingGen = 0;
+    // Set while the site replaces the listing; a scroll started meanwhile waits for it.
+    let listingWait = null;
+    let currentListing = listingKey();
+    let lastKeySignature = '';
+
+    // Listings sorted in this tab: coming back to one (product page, then Back) sorts it again.
+    const sortedListings = {
+        read: () => new Set(JSON.parse(sessionStorage.getItem('ssmarket:sorted') || '[]')),
+        add(key) {
+            sessionStorage.setItem('ssmarket:sorted', JSON.stringify([...this.read().add(key)]));
+        },
+        remove(key) {
+            const keys = this.read();
+            keys.delete(key);
+            sessionStorage.setItem('ssmarket:sorted', JSON.stringify([...keys]));
+        },
+        has: key => sortedListings.read().has(key)
+    };
 
     const actions = {
         refresh() {
@@ -774,14 +861,24 @@
             ui.setSorted(site.isSorted() && lastResult ? lastResult.count : 0);
         },
 
-        sort({ scroll = true } = {}) {
+        // `auto` - started by the script, not a click; `late` - folding in cards that were already on their way,
+        // which must not extend the folding window.
+        sort({ scroll = true, auto = false, late = false } = {}) {
+            if (!auto) {
+                listingGen += 1;
+            }
             const result = site.sort();
             if (!result) {
-                ui.toast('Карточки не найдены - это не страница выдачи');
+                if (!auto) {
+                    ui.toast('Карточки не найдены - это не страница выдачи');
+                }
                 return;
             }
             lastResult = result;
-            lastSortAt = Date.now();
+            if (!late) {
+                lastSortAt = Date.now();
+            }
+            sortedListings.add(currentListing);
             actions.refresh();
             if (scroll) {
                 const top = result.anchor.getBoundingClientRect().top + window.scrollY - 140;
@@ -790,10 +887,12 @@
         },
 
         restore() {
+            listingGen += 1;
             const anchorTop = lastResult?.anchor.isConnected
                 ? lastResult.anchor.getBoundingClientRect().top + window.scrollY - 140
                 : null;
             site.restore();
+            sortedListings.remove(currentListing);
             lastResult = null;
             actions.refresh();
             if (anchorTop !== null) {
@@ -805,12 +904,17 @@
             if (scrollRun) {
                 return;
             }
+            const run = { stop: false, cancelled: false };
+            scrollRun = run;
+            if (listingWait) {
+                ui.setStatus('Жду, пока сайт обновит выдачу...', 'busy');
+                await listingWait;
+            }
+            listingGen += 1;
             site.restore();
             lastResult = null;
             const totalMs = seconds * 1000;
             const startedAt = Date.now();
-            const run = { stop: false, cancelled: false };
-            scrollRun = run;
             ui.setSorted(0);
             while (!run.stop && Date.now() - startedAt < totalMs) {
                 // At the bottom a scroll does not move and fires no event, so the site never asks for the next
@@ -846,35 +950,58 @@
             }
         },
 
-        // A new listing (filter, sort, query) drops the old cards; with "keep" on, the new results are
-        // sorted once they stop arriving.
-        async onListingChange() {
-            const wasSorted = site.isSorted() || Boolean(scrollRun);
-            const before = site.keySet();
+        // A new listing (filter, sort, query, Back) replaces the cards. The old ones stay on screen until the
+        // site draws the new ones, so cards are collected afresh only once the result order changed and settled.
+        onListingChange(previousSignature) {
+            const wait = actions.settleListing(previousSignature);
+            listingWait = wait;
+            wait.finally(() => {
+                if (listingWait === wait) {
+                    listingWait = null;
+                }
+            });
+        },
+
+        async settleListing(previousSignature) {
+            const gen = ++listingGen;
+            const wasSorted = site.isSorted() || Boolean(scrollRun) || sortedListings.has(currentListing);
             actions.cancelScroll();
-            site.reset();
+            site.restore();
             lastResult = null;
-            actions.refresh();
-            if (!wasSorted || !ui.keepSorted()) {
-                return;
-            }
-            const deadline = Date.now() + RESULTS_WAIT_MS;
-            let lastSignature = '';
+            ui.setSorted(0);
+            ui.setStatus('Сайт обновляет выдачу...', 'busy');
+            const startedAt = Date.now();
+            const deadline = startedAt + RESULTS_WAIT_MS;
+            let signature = previousSignature;
             let stableSince = Date.now();
+            let changed = false;
             while (Date.now() < deadline) {
                 await wait(250);
-                const keys = site.keySet();
-                const signature = [...keys].join(',');
-                const isNew = keys.size > 0 && [...keys].some(key => !before.has(key));
-                if (signature !== lastSignature) {
-                    lastSignature = signature;
-                    stableSince = Date.now();
-                } else if (isNew && Date.now() - stableSince >= RESULTS_QUIET_MS) {
-                    // Cards captured while the old listing was being replaced do not belong to the new one.
-                    site.reset();
-                    actions.sort({ scroll: false });
+                if (gen !== listingGen) {
                     return;
                 }
+                const next = site.keySignature();
+                if (next !== signature) {
+                    signature = next;
+                    stableSince = Date.now();
+                    changed = changed || (next !== '' && next !== previousSignature);
+                } else if ((changed || Date.now() - startedAt >= RESULTS_UNCHANGED_MS)
+                    && next !== '' && Date.now() - stableSince >= RESULTS_QUIET_MS) {
+                    break;
+                }
+            }
+            if (gen !== listingGen) {
+                return;
+            }
+            site.reset();
+            site.capture();
+            if (scrollRun) {
+                return;
+            }
+            if (wasSorted && ui.keepSorted() && site.visibleCount() > 0) {
+                actions.sort({ scroll: false, auto: true });
+            } else {
+                actions.refresh();
             }
         }
     };
@@ -882,8 +1009,8 @@
     const ui = createUi();
 
     let captureTimer = 0;
-    new MutationObserver(() => {
-        if (captureTimer || scrollRun) {
+    new MutationObserver(records => {
+        if (captureTimer || scrollRun || records.every(record => site.isOwnNode(record.target))) {
             return;
         }
         captureTimer = setTimeout(() => {
@@ -893,24 +1020,31 @@
                 return;
             }
             if (Date.now() - lastSortAt < LATE_CARDS_MS) {
-                actions.sort({ scroll: false });
+                actions.sort({ scroll: false, auto: true, late: true });
             } else {
                 actions.refresh();
             }
         }, 300);
-    }).observe(site.observeRoot(), { childList: true, subtree: true });
+    }).observe(document.body, { childList: true, subtree: true });
 
-    let currentListing = listingKey();
     setInterval(() => {
-        ui.setVisible(site.isListing() || site.isSorted());
+        if (site.heal()) {
+            lastResult = null;
+            actions.refresh();
+        }
+        ui.setVisible(site.isListing() || site.isSorted() || Boolean(scrollRun));
         const next = listingKey();
         if (next !== currentListing) {
             currentListing = next;
-            actions.onListingChange();
+            actions.onListingChange(lastKeySignature);
         }
+        lastKeySignature = site.keySignature();
     }, URL_POLL_MS);
 
     ui.setVisible(site.isListing());
     site.capture();
     actions.refresh();
+    if (ui.keepSorted() && sortedListings.has(currentListing)) {
+        actions.onListingChange('');
+    }
 })();
