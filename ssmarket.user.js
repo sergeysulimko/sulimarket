@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         SSMarket
-// @namespace    https://github.com/sergeysulimko/ssmarket
+// @namespace    http://tampermonkey.net/
 // @version      2.0.0
 // @description  Сортировка выдачи Ozon и Wildberries по числу отзывов и оценок
 // @author       Sulimko
