@@ -407,14 +407,21 @@
 
     // ------------------------------------------------------------------ UI
     const ICON_SORT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 12h8M4 18h5"/><path d="M18 5v14M15 16l3 3 3-3"/></svg>';
-    const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-    const ICON_PLAY = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg>';
+    const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+    const ICON_PLAY = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
+    const ICON_UNDO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/></svg>';
+    const ICON_CHECK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+    const ICON_INFO = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 11v6M12 7.5v.01"/></svg>';
     const FAB_SIZE = 44;
     const EDGE_GAP = 12;
+    const PANEL_WIDTH = 300;
+    const DEFAULT_OFFSET = { right: 24, bottom: 68 };
 
+    // Look: board design/boards/widget/2026-10-19/approved/01-pristine-popover.png.
     const STYLE = `
         :host { all: initial; }
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; }
+        button { font: inherit; }
         .fab {
             position: fixed; width: ${FAB_SIZE}px; height: ${FAB_SIZE}px; border-radius: 50%;
             border: none; padding: 0; cursor: grab; touch-action: none;
@@ -425,64 +432,79 @@
         .fab:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
         .fab.dragging { cursor: grabbing; transform: scale(1.06); transition: none; }
         .fab .badge {
-            position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px;
-            border-radius: 10px; background: #fff; color: var(--accent); font-size: 11px; font-weight: 700;
+            position: absolute; top: -5px; right: -5px; min-width: 22px; height: 22px; padding: 0 6px;
+            border-radius: 11px; background: #fff; color: var(--accent); font-size: 11px; font-weight: 700;
             display: none; place-items: center; box-shadow: 0 1px 4px rgba(0, 0, 0, .2);
         }
         .fab.sorted .badge, .fab.busy .badge { display: grid; }
-        .fab svg.ring { position: absolute; inset: -4px; width: ${FAB_SIZE + 8}px; height: ${FAB_SIZE + 8}px; transform: rotate(-90deg); display: none; }
+        .fab svg.ring { position: absolute; inset: -5px; width: ${FAB_SIZE + 10}px; height: ${FAB_SIZE + 10}px; transform: rotate(-90deg); display: none; }
         .fab.busy svg.ring { display: block; }
-        .ring circle { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; opacity: .35; }
-        .ring circle.progress { opacity: 1; }
+        .ring circle { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; opacity: .25; }
+        .ring circle.progress { opacity: 1; transition: stroke-dashoffset .28s linear; }
         .panel {
-            position: fixed; width: 280px; padding: 14px; border-radius: 16px; background: #fff; color: #1b1d21;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, .16), 0 0 0 1px rgba(0, 0, 0, .05);
-            display: none; flex-direction: column; gap: 12px; font-size: 13px;
+            position: fixed; width: ${PANEL_WIDTH}px; padding: 16px; border-radius: 18px; background: #fff; color: #1b1d21;
+            box-shadow: 0 18px 48px rgba(16, 24, 40, .16), 0 0 0 1px rgba(16, 24, 40, .06);
+            display: none; flex-direction: column; gap: 14px; font-size: 13px;
         }
         .panel.open { display: flex; }
+        .panel::after {
+            content: ""; position: absolute; left: var(--caret-x, 50%); width: 12px; height: 12px; background: #fff;
+            transform: translateX(-50%) rotate(45deg); box-shadow: 1px 1px 0 rgba(16, 24, 40, .06);
+        }
+        .panel.above::after { bottom: -6px; }
+        .panel.below::after { top: -6px; box-shadow: -1px -1px 0 rgba(16, 24, 40, .06); }
         .head { display: flex; align-items: center; gap: 8px; }
-        .title { font-weight: 700; font-size: 14px; }
-        .chip { padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; }
-        .ver { color: #9aa0a8; font-size: 11px; margin-left: auto; }
-        .icon-btn { border: none; background: transparent; color: #9aa0a8; cursor: pointer; padding: 2px; border-radius: 6px; display: grid; }
+        .title { font-weight: 800; font-size: 16px; letter-spacing: -.01em; }
+        .chip { padding: 3px 9px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
+        .ver { color: #9aa0a8; font-size: 12px; margin-left: auto; }
+        .icon-btn { border: none; background: transparent; color: #5f6670; cursor: pointer; padding: 3px; border-radius: 8px; display: grid; }
         .icon-btn:hover { color: #1b1d21; background: #f2f3f5; }
-        .status { color: #5f6670; line-height: 1.4; min-height: 18px; }
-        .status b { color: #1b1d21; }
+        .status { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: #f5f6f8; line-height: 1.4; color: #1b1d21; }
+        .status-icon { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: #c4c8ce; margin-top: 1px; }
+        .status.sorted .status-icon { background: var(--accent); }
+        .status.busy .status-icon { background: none; border: 3px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+        .status.busy .status-icon svg { display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .status-text b { font-weight: 700; }
         .primary {
-            border: none; border-radius: 12px; padding: 11px 14px; background: var(--accent); color: #fff;
-            font-size: 14px; font-weight: 600; cursor: pointer;
+            border: none; border-radius: 12px; height: 44px; padding: 0 14px; background: var(--accent); color: #fff;
+            font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
         }
-        .primary:hover { filter: brightness(1.06); }
-        .label { color: #5f6670; font-size: 12px; }
-        .presets { display: flex; gap: 6px; }
+        .primary:hover { filter: brightness(1.07); }
+        .label { color: #3a3f47; font-size: 13px; margin-bottom: 8px; }
+        .row { display: flex; gap: 8px; align-items: center; }
+        .seg { flex: 1; display: flex; height: 40px; padding: 3px; gap: 2px; border: 1px solid #e3e5e8; border-radius: 12px; background: #fff; }
         .preset, .custom {
-            flex: 1; height: 34px; border-radius: 10px; border: 1px solid #e3e5e8; background: #f7f8fa;
-            color: #1b1d21; font-size: 13px; font-weight: 600; cursor: pointer;
+            flex: 1; border: none; border-radius: 9px; background: transparent; color: #1b1d21;
+            font-size: 13px; font-weight: 600; cursor: pointer; min-width: 0;
         }
-        .preset:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
-        .custom { display: flex; align-items: center; padding: 0 4px 0 8px; cursor: text; flex: 1.4; }
-        .custom input { width: 100%; border: none; background: transparent; font-size: 13px; font-weight: 600; outline: none; color: inherit; }
-        .custom button { border: none; background: var(--accent); color: #fff; width: 24px; height: 24px; border-radius: 7px; cursor: pointer; display: grid; place-items: center; flex: none; }
-        .custom:focus-within { border-color: var(--accent); }
+        .preset:hover { background: #f2f3f5; }
+        .preset.active { background: var(--accent); color: #fff; }
+        .custom { display: flex; align-items: center; justify-content: center; cursor: text; }
+        .custom input { width: 100%; border: none; background: transparent; font: inherit; font-weight: 600; text-align: center; outline: none; color: inherit; -moz-appearance: textfield; }
+        .custom input::-webkit-outer-spin-button, .custom input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .custom input::placeholder { color: #5f6670; }
+        .custom:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
+        .play { flex: none; width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--accent-soft); color: var(--accent); cursor: pointer; display: grid; place-items: center; }
+        .play:hover { background: var(--accent); color: #fff; }
         .secondary {
-            border: 1px solid #e3e5e8; border-radius: 12px; padding: 9px 14px; background: #fff; color: #1b1d21;
-            font-size: 13px; font-weight: 600; cursor: pointer;
+            border: 1px solid #e3e5e8; border-radius: 12px; height: 44px; padding: 0 14px; background: #fff; color: #1b1d21;
+            font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
         }
         .secondary:hover:not(:disabled) { background: #f7f8fa; }
         .secondary:disabled { color: #b7bcc3; cursor: default; }
-        .toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; color: #1b1d21; }
+        .toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; color: #1b1d21; line-height: 1.3; }
         .toggle input { display: none; }
-        .switch { width: 34px; height: 20px; border-radius: 10px; background: #d5d8dd; position: relative; flex: none; transition: background .15s; }
-        .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+        .switch { width: 38px; height: 22px; border-radius: 11px; background: #d5d8dd; position: relative; flex: none; transition: background .15s; }
+        .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
         .toggle input:checked + .switch { background: var(--accent); }
-        .toggle input:checked + .switch::after { transform: translateX(14px); }
+        .toggle input:checked + .switch::after { transform: translateX(16px); }
         .busy-only { display: none; }
-        .panel.busy .busy-only { display: block; }
+        .panel.busy .busy-only { display: flex; }
         .panel.busy .idle-only { display: none; }
-        .hint { color: #9aa0a8; font-size: 11px; }
         .toast {
             position: fixed; padding: 9px 14px; border-radius: 10px; background: #1b1d21; color: #fff; font-size: 13px;
-            opacity: 0; pointer-events: none; transition: opacity .2s; max-width: 280px;
+            opacity: 0; pointer-events: none; transition: opacity .2s; max-width: ${PANEL_WIDTH}px;
         }
         .toast.show { opacity: .95; }
     `;
@@ -494,9 +516,9 @@
         const shadow = host.attachShadow({ mode: 'open' });
         shadow.innerHTML = `
             <style>${STYLE}</style>
-            <button class="fab" type="button" aria-label="SSMarket: сортировка" aria-expanded="false" title="SSMarket - сортировка по ${site.countWord}">
+            <button class="fab" type="button" aria-label="SSMarket: сортировка" aria-expanded="false" title="SSMarket - сортировка по ${site.countWord}. Кнопку можно перетащить">
                 ${ICON_SORT}
-                <svg class="ring" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><circle class="progress" cx="26" cy="26" r="24"/></svg>
+                <svg class="ring" viewBox="0 0 54 54"><circle cx="27" cy="27" r="25"/><circle class="progress" cx="27" cy="27" r="25"/></svg>
                 <span class="badge"></span>
             </button>
             <div class="panel" role="dialog" aria-label="SSMarket">
@@ -505,22 +527,23 @@
                     <span class="ver">v${VERSION}</span>
                     <button class="icon-btn close" type="button" aria-label="Закрыть">${ICON_CLOSE}</button>
                 </div>
-                <div class="status"></div>
-                <button class="primary idle-only sort" type="button">Сортировать по ${site.countWord}</button>
+                <div class="status" role="status"><span class="status-icon"></span><span class="status-text"></span></div>
+                <button class="primary idle-only sort" type="button">${ICON_SORT}<span>Сортировать по ${site.countWord}</span></button>
                 <button class="primary busy-only stop" type="button">Хватит, сортировать</button>
                 <div class="idle-only">
                     <div class="label">Подгрузить ещё и отсортировать</div>
-                    <div class="presets" style="margin-top: 6px">
-                        ${SCROLL_PRESETS.map(seconds => `<button class="preset" type="button" data-seconds="${seconds}">${seconds} с</button>`).join('')}
-                        <label class="custom" title="Своё число секунд, Enter - старт">
-                            <input type="number" min="1" max="${MAX_SCROLL_SECONDS}" placeholder="N с" aria-label="Секунд листать">
-                            <button type="button" aria-label="Старт">${ICON_PLAY}</button>
-                        </label>
+                    <div class="row">
+                        <div class="seg">
+                            ${SCROLL_PRESETS.map(seconds => `<button class="preset" type="button" data-seconds="${seconds}">${seconds} с</button>`).join('')}
+                            <label class="custom" title="Своё число секунд, Enter - старт">
+                                <input type="number" min="1" max="${MAX_SCROLL_SECONDS}" placeholder="N с" aria-label="Секунд листать">
+                            </label>
+                        </div>
+                        <button class="play" type="button" aria-label="Листать своё число секунд и сортировать">${ICON_PLAY}</button>
                     </div>
                 </div>
-                <button class="secondary undo idle-only" type="button">Как было</button>
-                <label class="toggle idle-only"><span>Держать сортировку при смене фильтров</span><input type="checkbox" class="keep"><span class="switch"></span></label>
-                <div class="hint idle-only">Кнопку можно перетащить в любое место</div>
+                <button class="secondary undo idle-only" type="button">${ICON_UNDO}<span>Как было</span></button>
+                <label class="toggle idle-only"><input type="checkbox" class="keep"><span class="switch"></span><span>Держать сортировку при смене фильтров</span></label>
             </div>
             <div class="toast" role="status"></div>
         `;
@@ -532,22 +555,36 @@
         const fab = $('.fab');
         const panel = $('.panel');
         const status = $('.status');
+        const statusIcon = $('.status-icon');
+        const statusText = $('.status-text');
         const badge = $('.badge');
         const toastNode = $('.toast');
         const customInput = $('.custom input');
         const keepInput = $('.keep');
         const progress = $('.ring .progress');
-        const ringLength = 2 * Math.PI * 24;
+        const ringLength = 2 * Math.PI * 25;
         progress.style.strokeDasharray = String(ringLength);
 
         const positionKey = `position:${site.id}`;
-        let position = store.get(positionKey, { fx: 1, fy: 1 });
+        // Until the button is dragged it sits above the sites' own "to top" button in the bottom-right corner.
+        let position = store.get(positionKey, null);
         let toastTimer = 0;
 
         function fabBox() {
             const maxX = document.documentElement.clientWidth - FAB_SIZE - EDGE_GAP * 2;
             const maxY = window.innerHeight - FAB_SIZE - EDGE_GAP * 2;
+            if (!position) {
+                return { x: EDGE_GAP + maxX - DEFAULT_OFFSET.right, y: EDGE_GAP + maxY - DEFAULT_OFFSET.bottom };
+            }
             return { x: EDGE_GAP + position.fx * maxX, y: EDGE_GAP + position.fy * maxY };
+        }
+
+        function onRightHalf() {
+            return fabBox().x + FAB_SIZE / 2 > document.documentElement.clientWidth / 2;
+        }
+
+        function onLowerHalf() {
+            return fabBox().y + FAB_SIZE / 2 > window.innerHeight / 2;
         }
 
         function placeFab() {
@@ -560,10 +597,13 @@
         // The panel opens towards the larger free side of the screen, wherever the button sits.
         function placePanel() {
             const { x, y } = fabBox();
-            const width = 280;
-            const left = position.fx > 0.5 ? x + FAB_SIZE - width : x;
-            panel.style.left = `${Math.max(EDGE_GAP, Math.min(left, document.documentElement.clientWidth - width - EDGE_GAP))}px`;
-            if (position.fy > 0.5) {
+            const wanted = onRightHalf() ? x + FAB_SIZE - PANEL_WIDTH : x;
+            const left = Math.max(EDGE_GAP, Math.min(wanted, document.documentElement.clientWidth - PANEL_WIDTH - EDGE_GAP));
+            panel.style.left = `${left}px`;
+            panel.style.setProperty('--caret-x', `${Math.min(PANEL_WIDTH - 20, Math.max(20, x + FAB_SIZE / 2 - left))}px`);
+            panel.classList.toggle('above', onLowerHalf());
+            panel.classList.toggle('below', !onLowerHalf());
+            if (onLowerHalf()) {
                 panel.style.top = '';
                 panel.style.bottom = `${window.innerHeight - y + 10}px`;
             } else {
@@ -571,7 +611,7 @@
                 panel.style.top = `${y + FAB_SIZE + 10}px`;
             }
             toastNode.style.left = panel.style.left;
-            toastNode.style.top = position.fy > 0.5 ? `${y - 50}px` : `${y + FAB_SIZE + 10}px`;
+            toastNode.style.top = onLowerHalf() ? `${y - 50}px` : `${y + FAB_SIZE + 10}px`;
         }
 
         function setOpen(open) {
@@ -628,8 +668,18 @@
         $('.sort').addEventListener('click', () => actions.sort());
         $('.stop').addEventListener('click', () => actions.stopScroll());
         $('.undo').addEventListener('click', () => actions.restore());
-        shadow.querySelectorAll('.preset').forEach(button => {
-            button.addEventListener('click', () => actions.scrollAndSort(Number(button.dataset.seconds)));
+        const presets = shadow.querySelectorAll('.preset');
+        const markPreset = seconds => presets.forEach(button => {
+            button.classList.toggle('active', Number(button.dataset.seconds) === seconds);
+        });
+        markPreset(store.get('lastSeconds', 0));
+        presets.forEach(button => {
+            button.addEventListener('click', () => {
+                const seconds = Number(button.dataset.seconds);
+                store.set('lastSeconds', seconds);
+                markPreset(seconds);
+                actions.scrollAndSort(seconds);
+            });
         });
         const startCustom = () => {
             const seconds = Number(customInput.value);
@@ -638,6 +688,7 @@
                 return;
             }
             store.set('customSeconds', seconds);
+            markPreset(0);
             actions.scrollAndSort(Math.min(seconds, MAX_SCROLL_SECONDS));
         };
         customInput.value = store.get('customSeconds', '') || '';
@@ -647,7 +698,7 @@
                 startCustom();
             }
         });
-        $('.custom button').addEventListener('click', startCustom);
+        $('.play').addEventListener('click', startCustom);
         keepInput.checked = store.get('keepSorted', true);
         keepInput.addEventListener('change', () => store.set('keepSorted', keepInput.checked));
 
@@ -671,8 +722,10 @@
                     setOpen(false);
                 }
             },
-            setStatus(html) {
-                status.innerHTML = html;
+            setStatus(html, kind = 'idle') {
+                statusText.innerHTML = html;
+                status.className = `status ${kind}`;
+                statusIcon.innerHTML = kind === 'sorted' ? ICON_CHECK : ICON_INFO;
             },
             setSorted(count) {
                 fab.classList.toggle('sorted', Boolean(count));
@@ -713,7 +766,7 @@
                 const freshNote = fresh > 0
                     ? ` Подгружено ещё <b>${formatNumber(fresh)}</b> - нажмите "Сортировать", чтобы добавить.`
                     : '';
-                ui.setStatus(`Отсортировано <b>${formatNumber(lastResult.count)}</b> ${goodsWord(lastResult.count)} по ${site.countWord}. Больше всего - <b>${formatNumber(lastResult.top)}</b>.${freshNote}`);
+                ui.setStatus(`Отсортировано <b>${formatNumber(lastResult.count)}</b> ${goodsWord(lastResult.count)} по ${site.countWord}. Больше всего - <b>${formatNumber(lastResult.top)}</b>.${freshNote}`, 'sorted');
             } else {
                 site.capture();
                 ui.setStatus(`Загружено <b>${formatNumber(site.visibleCount())}</b> ${goodsWord(site.visibleCount())}. Порядок сайта.`);
@@ -767,7 +820,7 @@
                 site.capture();
                 const remaining = Math.max(0, totalMs - (Date.now() - startedAt));
                 ui.setBusy(remaining, totalMs);
-                ui.setStatus(`Листаю выдачу, ещё <b>${Math.ceil(remaining / 1000)} с</b>. Загружено <b>${formatNumber(site.visibleCount())}</b>.`);
+                ui.setStatus(`Листаю выдачу, ещё <b>${Math.ceil(remaining / 1000)} с</b>. Загружено <b>${formatNumber(site.visibleCount())}</b>.`, 'busy');
                 await wait(280);
             }
             scrollRun = null;
