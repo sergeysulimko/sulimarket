@@ -21,6 +21,8 @@
     const URL_POLL_MS = 500;
     const RESULTS_WAIT_MS = 12000;
     const RESULTS_QUIET_MS = 900;
+    // Pages the site was already fetching when the sort ran are folded into the sort for this long.
+    const LATE_CARDS_MS = 4000;
     // Query params the sites rewrite while scrolling; a change in them is not a new listing.
     const PAGING_PARAMS = ['page', 'layout_page_index', 'paginator_token', 'search_page_state', 'start_page_id'];
 
@@ -253,6 +255,10 @@
             isSorted: () => Boolean(document.getElementById(ROOT_ID)),
             capture,
             visibleCount: () => cache.size,
+            unsortedCount() {
+                const root = document.getElementById(ROOT_ID);
+                return root ? cache.size - root.firstElementChild.children.length : 0;
+            },
             reset() {
                 this.restore();
                 cache.clear();
@@ -260,7 +266,7 @@
             sort() {
                 capture();
                 const items = [...cache.values()].sort(compareItems);
-                if (!items.length) {
+                if (!items.length || !paginator()) {
                     return null;
                 }
                 const root = render(items);
@@ -350,6 +356,7 @@
                 placeTail();
             },
             visibleCount: () => cards().length,
+            unsortedCount: () => cards().filter(card => card.style.order === String(TAIL_ORDER)).length,
             reset() {
                 this.restore();
                 seen.clear();
@@ -694,6 +701,7 @@
     // ------------------------------------------------------------- actions
     let scrollRun = null;
     let lastResult = null;
+    let lastSortAt = 0;
 
     const actions = {
         refresh() {
@@ -701,7 +709,11 @@
                 return;
             }
             if (site.isSorted() && lastResult) {
-                ui.setStatus(`Отсортировано <b>${formatNumber(lastResult.count)}</b> ${goodsWord(lastResult.count)} по ${site.countWord}. Больше всего - <b>${formatNumber(lastResult.top)}</b>.`);
+                const fresh = site.unsortedCount();
+                const freshNote = fresh > 0
+                    ? ` Подгружено ещё <b>${formatNumber(fresh)}</b> - нажмите "Сортировать", чтобы добавить.`
+                    : '';
+                ui.setStatus(`Отсортировано <b>${formatNumber(lastResult.count)}</b> ${goodsWord(lastResult.count)} по ${site.countWord}. Больше всего - <b>${formatNumber(lastResult.top)}</b>.${freshNote}`);
             } else {
                 site.capture();
                 ui.setStatus(`Загружено <b>${formatNumber(site.visibleCount())}</b> ${goodsWord(site.visibleCount())}. Порядок сайта.`);
@@ -716,6 +728,7 @@
                 return;
             }
             lastResult = result;
+            lastSortAt = Date.now();
             actions.refresh();
             if (scroll) {
                 const top = result.anchor.getBoundingClientRect().top + window.scrollY - 140;
@@ -783,7 +796,7 @@
         // A new listing (filter, sort, query) drops the old cards; with "keep" on, the new results are
         // sorted once they stop arriving.
         async onListingChange() {
-            const wasSorted = site.isSorted();
+            const wasSorted = site.isSorted() || Boolean(scrollRun);
             const before = site.keySet();
             actions.cancelScroll();
             site.reset();
@@ -823,6 +836,14 @@
         captureTimer = setTimeout(() => {
             captureTimer = 0;
             site.capture();
+            if (!site.isSorted() || !site.unsortedCount()) {
+                return;
+            }
+            if (Date.now() - lastSortAt < LATE_CARDS_MS) {
+                actions.sort({ scroll: false });
+            } else {
+                actions.refresh();
+            }
         }, 300);
     }).observe(site.observeRoot(), { childList: true, subtree: true });
 
