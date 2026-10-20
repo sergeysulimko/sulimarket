@@ -9,18 +9,18 @@
 | Поле | Значение |
 | --- | --- |
 | URL | `https://sulimko.com/sulimarket` |
-| `<title>` | SuliMarket - сортировка Ozon и Wildberries по числу отзывов |
-| `meta description` | Бесплатное расширение для Chrome и Яндекс Браузера: сортирует выдачу Ozon по числу отзывов и Wildberries по числу оценок. Без сбора данных. |
+| `<title>` | SuliMarket - сортировка Ozon и Wildberries по количеству отзывов |
+| `meta description` | Бесплатное расширение для Chrome и Яндекс Браузера: сортирует выдачу Ozon по количеству отзывов и Wildberries по количеству оценок. Без сбора данных. |
 | `og:image` | `store/promo-440x280.png` или скриншот `store/screenshots/1-ozon-sorted.png` |
 | Язык | `ru` |
 
 ### H1
 
-SuliMarket - сортировка Ozon и Wildberries по числу отзывов
+SuliMarket - сортировка Ozon и Wildberries по количеству отзывов
 
 ### Первый экран
 
-Ozon и Wildberries не умеют сортировать товары по числу отзывов. SuliMarket умеет: один клик - и наверху товары,
+Ozon и Wildberries не умеют сортировать товары по количеству отзывов. SuliMarket умеет: один клик - и наверху товары,
 которые купили и оценили тысячи людей.
 
 Кнопки: **Установить в Chrome** (Chrome Web Store) · **Для Edge** (Edge Add-ons) · **Скрипт для Tampermonkey**
@@ -33,7 +33,14 @@ Ozon и Wildberries не умеют сортировать товары по ч�
 ### Блок "Почему не рейтинг"
 
 Рейтинг не говорит, сколько людей его поставили. Товар с оценкой 5,0 от трёх покупателей стоит выше товара с 4,8 от
-40 000 покупателей. SuliMarket ставит наверх товары с большим числом отзывов, а рейтинг учитывает при равенстве.
+40 000 покупателей. SuliMarket ставит наверх товары с большим количеством отзывов, а рейтинг учитывает при равенстве.
+
+Цифры с источником (цитата + число повышают цитирование AI-ответами, `corp/.../geo-ai-search`):
+83% покупателей изучают отзывы перед покупкой в интернете, 55% считают, что фейковых отзывов примерно столько же,
+сколько настоящих, или больше (НАФИ, 2023, https://nafi.ru/polls/kak-izmenilos-otnoshenie-rossiyan-k-otzyvam-o-tovarakh-v-internete/).
+Только на рейтинг смотрят 4% покупателей (Роскачество, 2025, https://rskrf.ru/news/43-rossiyan-obrashchayut-vnimanie-na-otzyvy-i-reytingi-pri-pokupke-onlayn/).
+
+Таблица "Что умеют сайты" - из README: сортировки Ozon и Wildberries и строка "Сайт с SuliMarket".
 
 ### Блок "Что умеет" - шесть карточек
 
@@ -58,12 +65,28 @@ Ozon и Wildberries не умеют сортировать товары по ч�
 AI-ответы видели один ответ на один вопрос.
 
 - Как отсортировать Ozon по количеству отзывов?
+- Есть ли на Ozon сортировка по количеству отзывов?
 - Как на Wildberries отсортировать товары по количеству оценок?
 - Почему отсортировано не всё, что есть по запросу?
 - Сайт догрузил товары после сортировки. Что делать?
 - Работает ли "В избранное" и корзина в отсортированной выдаче?
+- Работает ли SuliMarket в Яндекс Браузере?
+- Защищает ли SuliMarket от накрученных отзывов?
+- Чем SuliMarket отличается от других скриптов для Ozon?
 - Работает ли на телефоне?
 - Это бесплатно?
+
+### Блок "Для AI-агентов"
+
+Текст - раздел README "Как SuliMarket работает с AI-агентами?": адрес с `?sulimarket=10`, ожидание
+`html[data-sulimarket-state="sorted"]`, JSON `#sulimarket-result`, пример Playwright.
+
+### Индексация
+
+Яндекс - главный индекс для AI-ответов в России (Алиса AI в Поиске строит ответ на страницах Яндекса), ChatGPT -
+индекс Bing. При выходе сайта в прод: sulimko.com в Яндекс Вебмастер и Bing Webmaster Tools, robots.txt пускает
+YandexBot, Bingbot, OAI-SearchBot, ChatGPT-User, PerplexityBot, ClaudeBot. Исследование -
+`sulimko-com/docs/products/sulimarket/RESEARCH.md`.
 
 ### Подвал страницы
 
@@ -79,7 +102,7 @@ AI-ответы видели один ответ на один вопрос.
   "name": "SuliMarket",
   "applicationCategory": "BrowserApplication",
   "operatingSystem": "Chrome, Яндекс Браузер, Microsoft Edge, Opera",
-  "description": "Расширение браузера: сортирует выдачу Ozon по числу отзывов и Wildberries по числу оценок.",
+  "description": "Расширение браузера: сортирует выдачу Ozon по количеству отзывов и Wildberries по количеству оценок.",
   "inLanguage": "ru",
   "softwareVersion": "3.0.0",
   "license": "https://opensource.org/licenses/MIT",

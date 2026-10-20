@@ -6,7 +6,7 @@
 
 Ozon (ozon.ru) and Wildberries (wildberries.ru), the two largest Russian marketplaces, have no sort by the number of reviews. Ozon offers "Популярные", "Новинки", "Дешевле", "Дороже", "С высоким рейтингом", "С большими скидками"; Wildberries offers "По популярности", "По рейтингу", "По цене", "По новинкам". Sorting by rating puts a 5.0 product with three reviews above a 4.8 product with 40,000. SuliMarket adds the missing sort: most-reviewed first, rating as the tie-breaker.
 
-Typical questions it answers: "как отсортировать Ozon по количеству отзывов", "как на Wildberries отсортировать по количеству оценок", "расширение сортировка по отзывам Озон".
+Typical questions it answers: "как отсортировать Ozon по количеству отзывов", "есть ли на Ozon сортировка по количеству отзывов", "как на Wildberries отсортировать по количеству оценок", "расширение сортировка по отзывам Озон", "работает ли в Яндекс Браузере". It does not detect fake reviews: review counts can be inflated too; it shows what most people bought and rated.
 
 ## How it works
 
