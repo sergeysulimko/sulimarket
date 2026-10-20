@@ -2,6 +2,16 @@
 
 Формат - [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии - [semver](https://semver.org/lang/ru/).
 
+## [3.1.0] - 2026-10-20
+
+### Добавлено
+
+- Запуск по адресу для AI-агентов и закладок: `?sulimarket` сортирует загруженное, `?sulimarket=10` листает 10 секунд
+  и сортирует. На открытой странице - `#sulimarket` и `#sulimarket=10`.
+- Результат для программ: состояние в `html[data-sulimarket-state]` (`idle`, `busy`, `sorted`) и список товаров в JSON
+  `#sulimarket-result` - место, название, адрес, цена, число отзывов или оценок, рейтинг.
+- Демо в README: GIF для Ozon и Wildberries.
+
 ## [3.0.0] - 2026-10-20
 
 Новое имя: SSMarket стал SuliMarket.
@@ -52,6 +62,7 @@
 
 Первая версия: скрипт Tampermonkey SSMarket с сортировкой Ozon и Wildberries по отзывам.
 
+[3.1.0]: https://github.com/sergeysulimko/sulimarket/releases/tag/v3.1.0
 [3.0.0]: https://github.com/sergeysulimko/sulimarket/releases/tag/v3.0.0
 [2.1.0]: https://github.com/sergeysulimko/sulimarket/commit/a30721e
 [2.0.0]: https://github.com/sergeysulimko/sulimarket/commit/9a7249a

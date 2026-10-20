@@ -13,6 +13,8 @@ const RESULTS_UNCHANGED_MS = 2500;
 const LATE_CARDS_MS = 4000;
 // Query params the sites rewrite while scrolling; a change in them is not a new listing.
 const PAGING_PARAMS = ['page', 'layout_page_index', 'paginator_token', 'search_page_state', 'start_page_id'];
+// The address command of SuliMarket itself (see runAddressCommand); it does not make a new listing.
+const COMMAND_PARAM = 'sulimarket';
 
 function parseCount(text) {
     return parseInt(String(text).replace(/[^\d]/g, ''), 10) || 0;
@@ -54,9 +56,30 @@ function compareItems(a, b) {
     return (b.count - a.count) || (b.rating - a.rating) || (a.seen - b.seen);
 }
 
+const PRODUCT_LINKS = 'a[href*="/product/"], a[href*="/detail.aspx"]';
+const PRICE = /^\d[\d\s\u2009\u00a0]*\s?₽$/;
+
+// Title, address and price of a card for the machine-readable result. The title is the longest wordy text
+// inside the product links: the counts and the price there carry no three letters in a row or are shorter.
+function describeCard(node) {
+    const link = node.querySelector(PRODUCT_LINKS);
+    const url = link ? new URL(link.getAttribute('href'), location.origin) : null;
+    const texts = leafTexts(node);
+    const price = texts.find(text => PRICE.test(text));
+    const linkTexts = Array.from(node.querySelectorAll(PRODUCT_LINKS)).flatMap(leafTexts);
+    const title = (linkTexts.length ? linkTexts : texts)
+        .filter(text => /[a-zа-яё]{3}/i.test(text) && !PRICE.test(text))
+        .sort((a, b) => b.length - a.length)[0] || '';
+    return {
+        title: title.replace(/^\/\s*/, ''),
+        url: url ? url.origin + url.pathname : '',
+        price: price ? parseCount(price) : null
+    };
+}
+
 function listingKey() {
     const params = new URLSearchParams(location.search);
-    PAGING_PARAMS.forEach(name => params.delete(name));
+    [...PAGING_PARAMS, COMMAND_PARAM].forEach(name => params.delete(name));
     params.sort();
     return `${location.pathname}?${params}`;
 }
@@ -325,7 +348,12 @@ function createOzon() {
                 return null;
             }
             const root = render(items);
-            return { count: items.length, top: items[0].count, anchor: root };
+            return {
+                count: items.length,
+                top: items[0].count,
+                anchor: root,
+                items: items.map(item => ({ node: item.snapshot, count: item.count, rating: item.rating }))
+            };
         },
         restore() {
             removeRoot();
@@ -466,7 +494,12 @@ function createWildberries() {
             root.dataset[SORTED_ATTR] = '1';
             sortedList = root;
             placeTail();
-            return { count: items.length, top: items[0].count, anchor: root };
+            return {
+                count: items.length,
+                top: items[0].count,
+                anchor: root,
+                items: items.map(item => ({ node: item.card, count: item.count, rating: item.rating }))
+            };
         },
         restore() {
             sortedList = null;
@@ -908,6 +941,33 @@ const sortingOn = {
 };
 const banner = createPageBanner();
 
+// Agents and scripts read the state from html[data-sulimarket-state] (idle, busy, sorted) and the sorted
+// list from the JSON node #sulimarket-result, without parsing the page. Both sit outside <body>, so the
+// observer of the site's cards does not see them change.
+function publish(state, result = null) {
+    document.documentElement.dataset.sulimarketState = state;
+    let node = document.getElementById('sulimarket-result');
+    if (!node) {
+        node = document.createElement('script');
+        node.type = 'application/json';
+        node.id = 'sulimarket-result';
+        document.documentElement.appendChild(node);
+    }
+    node.textContent = JSON.stringify({
+        version: VERSION,
+        site: site.id,
+        countOf: site.id === 'ozon' ? 'reviews' : 'ratings',
+        state,
+        url: location.href,
+        items: result ? result.items.map((item, index) => ({
+            rank: index + 1,
+            ...describeCard(item.node),
+            count: item.count,
+            rating: item.rating || null
+        })) : []
+    });
+}
+
 const actions = {
     refresh() {
         if (scrollRun || settlingGen === listingGen) {
@@ -979,6 +1039,7 @@ const actions = {
         }
         const result = site.sort();
         if (!result) {
+            publish('idle');
             if (!auto) {
                 ui.toast('Карточки не найдены - это не страница выдачи');
             }
@@ -989,6 +1050,7 @@ const actions = {
             lastSortAt = Date.now();
         }
         sortingOn.set(true);
+        publish('sorted', result);
         actions.refresh();
         if (scroll) {
             const top = result.anchor.getBoundingClientRect().top + window.scrollY - 140;
@@ -1004,6 +1066,7 @@ const actions = {
         site.restore();
         sortingOn.set(false);
         lastResult = null;
+        publish('idle');
         actions.refresh();
         if (anchorTop !== null) {
             window.scrollTo({ top: Math.max(0, anchorTop), behavior: 'smooth' });
@@ -1016,6 +1079,7 @@ const actions = {
         }
         const run = { stop: false, cancelled: false };
         scrollRun = run;
+        publish('busy');
         if (listingWait) {
             actions.showBusy('Жду новую выдачу', 'Сайт ещё загружает карточки');
             await listingWait;
@@ -1039,6 +1103,7 @@ const actions = {
         scrollRun = null;
         ui.setBusy(null);
         if (run.cancelled) {
+            publish('idle');
             actions.refresh();
             return;
         }
@@ -1079,6 +1144,7 @@ const actions = {
         site.restore();
         lastResult = null;
         banner.node.remove();
+        publish('busy');
         actions.showBusy('Сайт обновляет выдачу', wasSorted && ui.keepSorted() ? 'Отсортирую, когда загрузится' : '');
         const startedAt = Date.now();
         const deadline = startedAt + RESULTS_WAIT_MS;
@@ -1112,8 +1178,45 @@ const actions = {
         if (wasSorted && ui.keepSorted() && site.visibleCount() > 0) {
             actions.sort({ scroll: false, auto: true });
         } else {
+            publish('idle');
             actions.refresh();
         }
+    },
+
+    // An address with ?sulimarket sorts what the site loaded, ?sulimarket=10 loads for 10 s and then sorts:
+    // an agent or a bookmark gets a sorted listing without a click. Ozon redirects a search to a category and
+    // keeps the query but drops the #fragment, so the fragment form (#sulimarket=10) serves an open page only.
+    async runAddressCommand({ fromHash = false } = {}) {
+        const query = new URLSearchParams(location.search).get(COMMAND_PARAM);
+        const hash = location.hash.match(/^#sulimarket(?:=(\d+))?$/);
+        const value = fromHash ? hash && (hash[1] || '') : query ?? (hash && (hash[1] || ''));
+        if (value === null || !/^\d*$/.test(value)) {
+            return false;
+        }
+        const seconds = Math.min(MAX_SCROLL_SECONDS, Number(value || 0));
+        publish('busy');
+        const deadline = Date.now() + RESULTS_WAIT_MS;
+        let signature = '';
+        let stableSince = Date.now();
+        while (Date.now() < deadline) {
+            await wait(250);
+            const next = site.keySignature();
+            if (next !== signature) {
+                signature = next;
+                stableSince = Date.now();
+            } else if (next !== '' && Date.now() - stableSince >= RESULTS_QUIET_MS) {
+                break;
+            }
+        }
+        if (listingWait) {
+            await listingWait;
+        }
+        if (seconds) {
+            actions.scrollAndSort(seconds);
+        } else {
+            actions.sort({ scroll: false });
+        }
+        return true;
     }
 };
 
@@ -1172,7 +1275,11 @@ setInterval(() => {
 ui.setVisible(site.isListing());
 retireOldScript();
 site.capture();
+publish('idle');
 actions.refresh();
-if (ui.keepSorted() && sortingOn.get()) {
-    actions.onListingChange('');
-}
+window.addEventListener('hashchange', () => actions.runAddressCommand({ fromHash: true }));
+actions.runAddressCommand().then(started => {
+    if (!started && ui.keepSorted() && sortingOn.get()) {
+        actions.onListingChange('');
+    }
+});

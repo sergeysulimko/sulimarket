@@ -1,6 +1,6 @@
 # SuliMarket - сортировка Ozon и Wildberries по числу отзывов
 
-[![Версия](https://img.shields.io/badge/версия-3.0.0-16181d.svg)](CHANGELOG.md)
+[![Версия](https://img.shields.io/badge/версия-3.1.0-16181d.svg)](CHANGELOG.md)
 [![Лицензия: MIT](https://img.shields.io/badge/лицензия-MIT-blue.svg)](LICENSE)
 [![Chrome и Яндекс Браузер](https://img.shields.io/badge/Chrome%20·%20Яндекс%20·%20Edge-расширение-ffb020.svg)](#как-установить)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-скрипт-00485b.svg)](#через-tampermonkey)
@@ -15,7 +15,7 @@ SuliMarket - расширение для браузера, которое сор
 "С большими скидками". У Wildberries - "По популярности", "По рейтингу", "По цене" и "По новинкам". Сортировки по
 числу отзывов нет ни там, ни там. SuliMarket её добавляет.
 
-![SuliMarket на Ozon: наушники отсортированы по числу отзывов, 134 623 отзыва у первого товара](store/screenshots/1-ozon-sorted.png)
+![SuliMarket на Ozon: одно нажатие - и наверху наушники со 134 664 и 86 267 отзывами вместо 404 и 925](docs/demo-ozon.gif)
 
 > **Быстрый старт.** Поставьте расширение, откройте поиск или категорию на Ozon или Wildberries и нажмите круглую
 > кнопку в правом нижнем углу. Подробно - в разделе [Как установить](#как-установить).
@@ -28,6 +28,7 @@ SuliMarket - расширение для браузера, которое сор
 - [Почему не хватает сортировки по рейтингу?](#почему-не-хватает-сортировки-по-рейтингу)
 - [Как установить?](#как-установить)
 - [Как пользоваться?](#как-пользоваться)
+- [Как SuliMarket работает с AI-агентами?](#как-sulimarket-работает-с-ai-агентами)
 - [Частые вопросы](#частые-вопросы)
 - [Что SuliMarket видит и куда отправляет?](#что-sulimarket-видит-и-куда-отправляет)
 - [Как это устроено?](#как-это-устроено)
@@ -114,6 +115,59 @@ SuliMarket - второй копии не будет. Если SuliMarket всё
 5. Вернуть порядок сайта - "Как было".
 
 Кнопку можно перетащить мышью. Панель открывается в ту сторону, где больше места.
+
+![Wildberries: кнопка "5 с" листает выдачу 5 секунд и сортирует 140 чайников по числу оценок](docs/demo-wb.gif)
+
+---
+
+## Как SuliMarket работает с AI-агентами?
+
+AI-агент с браузером (Claude, ChatGPT Agent, Operator, Comet, скрипт на Playwright) получает отсортированную выдачу
+без кликов по панели. Нужен браузер, где стоит SuliMarket.
+
+1. Откройте адрес выдачи с параметром `sulimarket`:
+   - `?sulimarket` - отсортировать то, что сайт загрузил;
+   - `?sulimarket=10` - листать выдачу 10 секунд, потом отсортировать всё загруженное (до 180 секунд).
+
+   ```
+   https://www.ozon.ru/search/?text=наушники&sulimarket=10
+   https://www.wildberries.ru/catalog/0/search.aspx?search=чайник&sulimarket=10
+   ```
+
+2. Дождитесь `<html data-sulimarket-state="sorted">`. Пока SuliMarket ждёт сайт или листает, там `busy`.
+3. Прочитайте JSON из `<script type="application/json" id="sulimarket-result">`:
+
+   ```json
+   {
+     "version": "3.1.0",
+     "site": "ozon",
+     "countOf": "reviews",
+     "state": "sorted",
+     "url": "https://www.ozon.ru/category/feny-10739/?...",
+     "items": [
+       {
+         "rank": 1,
+         "title": "Компактный мощный Фен для волос со складной ручкой SC-074...",
+         "url": "https://www.ozon.ru/product/kompaktnyy-moshchnyy-fen-...-1326742535/",
+         "price": 1091,
+         "count": 44615,
+         "rating": 4.9
+       }
+     ]
+   }
+   ```
+
+`count` - число отзывов на Ozon (`countOf: "reviews"`) или оценок на Wildberries (`countOf: "ratings"`), `price` - цена
+в рублях с карточки. На уже открытой странице то же делает `#sulimarket` или `#sulimarket=10` в конце адреса.
+
+Пример для Playwright:
+
+```js
+await page.goto('https://www.wildberries.ru/catalog/0/search.aspx?search=фен&sulimarket=10');
+await page.waitForSelector('html[data-sulimarket-state="sorted"]', { timeout: 60000 });
+const result = JSON.parse(await page.locator('#sulimarket-result').textContent());
+console.log(result.items.slice(0, 5));
+```
 
 ---
 

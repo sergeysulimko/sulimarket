@@ -17,6 +17,10 @@ Typical questions it answers: "как отсортировать Ozon по ко�
 - Cards loaded after the sort are flagged (yellow `+N` badge, "Досортировать" strip). "Как было" restores the site order. "Держать" re-sorts after a filter, category or search change.
 - Draggable button; position stored per site.
 
+## Use from an AI agent or a script
+
+In a browser with SuliMarket installed, open a results address with the `sulimarket` parameter: `?sulimarket` sorts what the site has loaded, `?sulimarket=10` scrolls the results for 10 seconds (up to 180) and then sorts. Examples: `https://www.ozon.ru/search/?text=наушники&sulimarket=10`, `https://www.wildberries.ru/catalog/0/search.aspx?search=чайник&sulimarket=10`. Wait for `html[data-sulimarket-state="sorted"]` (`busy` while waiting or scrolling), then read the JSON in `<script type="application/json" id="sulimarket-result">`: `{version, site, countOf: "reviews"|"ratings", state, url, items: [{rank, title, url, price, count, rating}]}`. On an open page `#sulimarket` or `#sulimarket=10` does the same.
+
 ## Install
 
 - Chrome Web Store (Chrome, Yandex Browser, Opera) and Edge Add-ons - links after publication.
