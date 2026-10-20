@@ -148,16 +148,21 @@ function createPageBanner() {
 // The search page is a virtual paginator: pages far from the viewport are unmounted, so cards are
 // snapshotted while visible and the sorted list is drawn from snapshots in a root of our own.
 // Search and category pages use infiniteVirtualPaginator, collection pages ("подборки") use megaPaginator.
+// The site's own list stays on the page under the sorted one with the sorted cards hidden: its "load more"
+// trigger keeps working, so a plain scroll past the sorted list loads the next page as on the site.
 function createOzon() {
     const PAGINATOR = '[data-widget="infiniteVirtualPaginator"], [data-widget="megaPaginator"]';
     const TILE_GRID = '[data-widget="tileGridDesktop"]';
     const PRODUCT_LINK = 'a[href*="/product/"]';
     const REVIEWS = 'отзыв';
     const ROOT_ID = 'sulimarket-ozon-sorted';
+    const AWAY = 'ssmAway';
 
     const cache = new Map();
     const layout = { gridClass: '', tileClass: '' };
-    let hiddenPaginator = null;
+    // Keys of the cards in the sorted list; their live tiles in the site's list are hidden.
+    const sortedKeys = new Set();
+    let sortedPaginator = null;
 
     function paginator() {
         return document.querySelector(PAGINATOR);
@@ -177,6 +182,32 @@ function createOzon() {
 
     function tilesOf(grid) {
         return Array.from(grid.firstElementChild.children).filter(tile => tile.querySelector(PRODUCT_LINK));
+    }
+
+    // The style is on the page while a list is sorted; a tile is marked by its key.
+    function awayStyle(on) {
+        let node = document.getElementById('sulimarket-away');
+        if (on && !node) {
+            node = document.createElement('style');
+            node.id = 'sulimarket-away';
+            node.textContent = '[data-ssm-away] { display: none !important; }';
+            document.head.appendChild(node);
+        } else if (!on && node) {
+            node.remove();
+        }
+    }
+
+    // Runs from the page observer before the browser paints, so a page the site mounts again does not
+    // flash its sorted cards under the sorted list.
+    function hideSorted() {
+        if (!sortedKeys.size) {
+            return;
+        }
+        resultGrids().forEach(grid => tilesOf(grid).forEach(tile => {
+            if (!tile.dataset[AWAY] && sortedKeys.has(keyOf(tile))) {
+                tile.dataset[AWAY] = '1';
+            }
+        }));
     }
 
     function keyOf(tile) {
@@ -306,8 +337,11 @@ function createOzon() {
         root.appendChild(grid);
         root.addEventListener('click', proxyClick, true);
         native.parentElement.insertBefore(root, native);
-        hiddenPaginator = native;
-        native.style.display = 'none';
+        sortedPaginator = native;
+        sortedKeys.clear();
+        items.forEach(item => sortedKeys.add(item.key));
+        awayStyle(true);
+        hideSorted();
         return root;
     }
 
@@ -320,7 +354,7 @@ function createOzon() {
         name: 'Ozon',
         countWord: 'отзывам',
         countForms: ['отзыв', 'отзыва', 'отзывов'],
-        // The sorted list ends with a strip: fresh cards to fold in, or a way to load more.
+        // The strip ends the sorted list; the site's own list with the fresh cards follows it.
         placeBanner(node) {
             const root = document.getElementById(ROOT_ID);
             if (root && node.parentElement !== root) {
@@ -332,6 +366,7 @@ function createOzon() {
         isListing: () => Boolean(paginator()) && resultGrids().length > 0,
         isSorted: () => Boolean(document.getElementById(ROOT_ID)),
         capture,
+        hideSorted,
         visibleCount: () => cache.size,
         unsortedCount() {
             const root = document.getElementById(ROOT_ID);
@@ -357,20 +392,20 @@ function createOzon() {
         },
         restore() {
             removeRoot();
-            if (hiddenPaginator) {
-                hiddenPaginator.style.display = '';
-                hiddenPaginator = null;
-            }
+            sortedKeys.clear();
+            sortedPaginator = null;
+            awayStyle(false);
+            document.querySelectorAll('[data-ssm-away]').forEach(tile => delete tile.dataset[AWAY]);
         },
         keySignature: () => resultGrids().flatMap(grid => tilesOf(grid).map(keyOf)).join(','),
         isOwnNode: node => Boolean(node.closest?.(`#${ROOT_ID}, [data-ssm-banner]`)),
         // Ozon may re-render the column under the sorted list: drop a sorted list that lost its place.
         heal() {
-            if (!hiddenPaginator) {
+            if (!sortedPaginator) {
                 return false;
             }
             const root = document.getElementById(ROOT_ID);
-            if (root && hiddenPaginator.isConnected && paginator() === hiddenPaginator) {
+            if (root && sortedPaginator.isConnected && paginator() === sortedPaginator) {
                 return false;
             }
             this.restore();
@@ -465,6 +500,8 @@ function createWildberries() {
             capture();
             placeTail();
         },
+        // Wildberries keeps its own cards and reorders them, there is nothing to hide.
+        hideSorted() {},
         visibleCount: () => cards().length,
         unsortedCount: () => cards().filter(card => card.style.order === String(TAIL_ORDER)).length,
         reset() {
@@ -521,6 +558,325 @@ function createWildberries() {
             }
             sortedList = null;
             return true;
+        }
+    };
+}
+
+// ------------------------------------------------- Ozon: other sellers of one product
+// The product page opens "Другие предложения от продавцов на Ozon" from "Есть дешевле" / "Есть быстрее". Each
+// seller row gets the shop's own numbers (rating, reviews, orders, time on Ozon) from the same request the site
+// makes for its "О магазине" window, and the rows can be put in order of reviews with CSS `order`.
+function createOzonOffers() {
+    const LIST = '[data-widget="webSellerList"]';
+    const SWITCHER = '[data-widget="webSellersSortSwitcher"]';
+    const SELLER_LINK = 'a[href^="/seller/"]';
+    const TAIL_ORDER = 100000;
+    const LOAD_ALL_MS = 15000;
+    const LOAD_STEP_MS = 3000;
+    const STATS_FOR_SORT = 100;
+    const FEW_ORDERS = 100;
+    const FETCHES_AT_ONCE = 3;
+
+    const shops = new Map();
+    const queue = [];
+    let fetching = 0;
+    let button = null;
+    let sorted = false;
+    let busy = null;
+    const rowsWatch = new MutationObserver(() => placeTail());
+    const visible = new IntersectionObserver(entries => entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            visible.unobserve(entry.target);
+            shopOf(entry.target);
+        }
+    }), { rootMargin: '600px 0px' });
+
+    function rowsBox() {
+        return document.querySelector(LIST)?.firstElementChild?.firstElementChild || null;
+    }
+
+    function rows() {
+        const box = rowsBox();
+        return box ? Array.from(box.children).filter(row => row.querySelector(SELLER_LINK)) : [];
+    }
+
+    function sellerId(row) {
+        return row.querySelector(SELLER_LINK).getAttribute('href').match(/(\d+)\/?(?:[?#]|$)/)[1];
+    }
+
+    // Short numbers come as "4 240", "44,3 K", "107 K".
+    function readShort(text) {
+        const number = parseFloat(text.replace(/[\s ]/g, '').replace(',', '.')) || 0;
+        return /K/i.test(text) ? Math.round(number * 1000) : number;
+    }
+
+    function shortText(text, forms) {
+        if (/K/i.test(text)) {
+            return `${text.replace(/\s*K/i, '').trim()} тыс. ${forms[2]}`;
+        }
+        return counted(readShort(text), forms);
+    }
+
+    async function loadShop(id) {
+        const address = `/modal/shop-in-shop-info?seller_id=${id}`;
+        const response = await fetch(`/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(address)}`, { credentials: 'include' });
+        if (!response.ok) {
+            throw new Error(String(response.status));
+        }
+        const facts = {};
+        Object.values((await response.json()).widgetStates || {}).forEach(state => {
+            if (!state.includes('dsCell')) {
+                return;
+            }
+            (JSON.parse(state).cells || []).forEach(cell => {
+                const title = cell.dsCell?.centerBlock?.title?.text;
+                const value = cell.dsCell?.rightBlock?.badge?.text;
+                if (title && value) {
+                    facts[title] = value;
+                }
+            });
+        });
+        return {
+            rating: (facts['Средняя оценка товаров'] || '').replace(/\s*из.*$/, ''),
+            reviews: facts['Количество отзывов'] || '',
+            orders: facts['Заказов'] || '',
+            age: facts['Работает с Ozon'] || ''
+        };
+    }
+
+    // One request per shop, a few at a time; the answer is kept for the page's life.
+    function shopOf(row) {
+        const id = sellerId(row);
+        if (!shops.has(id)) {
+            shops.set(id, new Promise((resolve, reject) => queue.push({ id, resolve, reject })));
+            pump();
+        }
+        const promise = shops.get(id);
+        promise.then(shop => drawShop(row, shop), () => drawShop(row, null));
+        return promise.catch(() => null);
+    }
+
+    function pump() {
+        while (fetching < FETCHES_AT_ONCE && queue.length) {
+            const job = queue.shift();
+            fetching += 1;
+            loadShop(job.id).then(job.resolve, job.reject).finally(() => {
+                fetching -= 1;
+                pump();
+            });
+        }
+    }
+
+    function infoColumn(row) {
+        const name = Array.from(row.querySelectorAll(SELLER_LINK)).find(link => !link.querySelector('img'));
+        return Array.from(row.firstElementChild.children).find(column => column.contains(name)) || row;
+    }
+
+    function shopLine(row) {
+        let line = row.querySelector('[data-ssm-shop]');
+        if (!line) {
+            line = document.createElement('div');
+            line.dataset.ssmShop = '1';
+            line.style.cssText = 'margin-top: 6px; font-size: 13px; line-height: 1.35; color: #5f6670;';
+            line.textContent = 'Магазин: загружаю';
+            infoColumn(row).appendChild(line);
+        }
+        return line;
+    }
+
+    function drawShop(row, shop) {
+        const line = shopLine(row);
+        if (!shop) {
+            line.textContent = 'Магазин: Ozon не ответил';
+            return;
+        }
+        const parts = [];
+        if (shop.rating) {
+            parts.push(`★ ${shop.rating}`);
+        }
+        if (shop.reviews) {
+            parts.push(shortText(shop.reviews, ['отзыв', 'отзыва', 'отзывов']));
+        }
+        parts.push(shop.orders ? shortText(shop.orders, ['заказ', 'заказа', 'заказов']) : 'нет заказов');
+        if (shop.age) {
+            parts.push(`${shop.age} на Ozon`);
+        }
+        const few = readShort(shop.orders) < FEW_ORDERS;
+        line.textContent = `Магазин: ${parts.join(' · ')}${few ? ' - мало заказов' : ''}`;
+        line.style.color = few ? '#b25e00' : '#5f6670';
+        line.dataset.ssmReviews = String(readShort(shop.reviews));
+    }
+
+    function setLabel(text, active = sorted) {
+        button.querySelector('span').textContent = text;
+        button.style.background = active ? site.accent : '#fff';
+        button.style.color = active ? '#fff' : '#1b1d21';
+    }
+
+    function makeButton(switcher) {
+        button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.ssmOffersSort = '1';
+        button.title = 'SuliMarket: продавцы с большим числом отзывов на этот товар - наверху';
+        button.style.cssText = 'display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px;'
+            + ' border: 1px solid #d6d9de; border-radius: 12px; font: inherit; font-weight: 600; cursor: pointer;';
+        button.innerHTML = `${ICON_SORT}<span></span>`;
+        button.querySelector('svg').setAttribute('width', '18');
+        button.querySelector('svg').setAttribute('height', '18');
+        setLabel('По отзывам');
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (busy) {
+                busy.stop = true;
+                return;
+            }
+            sortRows();
+        });
+        switcher.style.display = 'flex';
+        switcher.style.alignItems = 'center';
+        switcher.style.gap = '12px';
+        switcher.appendChild(button);
+        // A site tab ("Быстрее доставка", "Ниже цена") gives the order back to the site.
+        switcher.addEventListener('click', event => {
+            if (!button.contains(event.target)) {
+                unsort();
+            }
+        }, true);
+    }
+
+    function scroller() {
+        for (let node = rowsBox(); node; node = node.parentElement) {
+            if (/(auto|scroll)/.test(getComputedStyle(node).overflowY) && node.scrollHeight > node.clientHeight) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    // The site loads 20 sellers at a time while the window is scrolled; load them all, up to LOAD_ALL_MS.
+    async function loadAll(run) {
+        const box = scroller();
+        const startedAt = Date.now();
+        let count = rows().length;
+        let grewAt = Date.now();
+        while (box && !run.stop && Date.now() - startedAt < LOAD_ALL_MS && Date.now() - grewAt < LOAD_STEP_MS) {
+            box.scrollTop = box.scrollHeight;
+            await wait(250);
+            const next = rows().length;
+            if (next !== count) {
+                count = next;
+                grewAt = Date.now();
+                setLabel(`Загружено ${count}`, true);
+            }
+        }
+    }
+
+    async function sortRows() {
+        const run = { stop: false };
+        busy = run;
+        setLabel('Загружаю продавцов', true);
+        await loadAll(run);
+        const all = rows();
+        setLabel('Смотрю магазины', true);
+        await Promise.race([
+            Promise.all(all.slice(0, STATS_FOR_SORT).map(shopOf)),
+            new Promise(resolve => {
+                const timer = setInterval(() => {
+                    if (run.stop) {
+                        clearInterval(timer);
+                        resolve();
+                    }
+                }, 200);
+            })
+        ]);
+        busy = null;
+        const box = rowsBox();
+        const items = all.map((row, index) => ({
+            row,
+            count: Number(row.dataset.ssmCount || 0),
+            shop: Number(row.querySelector('[data-ssm-shop]')?.dataset.ssmReviews || 0),
+            index
+        })).sort((a, b) => (b.count - a.count) || (b.shop - a.shop) || (a.index - b.index));
+        box.style.display = 'flex';
+        box.style.flexDirection = 'column';
+        items.forEach((item, index) => {
+            item.row.style.order = String(index + 1);
+            item.row.dataset.ssmPlaced = '1';
+        });
+        sorted = true;
+        placeTail();
+        rowsWatch.disconnect();
+        rowsWatch.observe(box, { childList: true });
+        setLabel(`По отзывам: ${all.length}`);
+        const view = scroller();
+        if (view) {
+            view.scrollTop = 0;
+        }
+    }
+
+    // Sellers loaded after the sort go under the sorted ones, the site's "load more" stays last.
+    function placeTail() {
+        const box = rowsBox();
+        if (!sorted || !box) {
+            return;
+        }
+        let fresh = 0;
+        Array.from(box.children).forEach(child => {
+            if (child.dataset.ssmPlaced) {
+                return;
+            }
+            const isRow = Boolean(child.querySelector(SELLER_LINK));
+            child.style.order = String(isRow ? TAIL_ORDER : TAIL_ORDER * 2);
+            fresh += isRow ? 1 : 0;
+        });
+        if (fresh) {
+            setLabel(`Досортировать +${fresh}`);
+        }
+    }
+
+    function unsort() {
+        rowsWatch.disconnect();
+        const box = rowsBox();
+        sorted = false;
+        if (box) {
+            box.style.display = '';
+            box.style.flexDirection = '';
+            Array.from(box.children).forEach(child => {
+                child.style.order = '';
+                delete child.dataset.ssmPlaced;
+            });
+        }
+        if (button) {
+            setLabel('По отзывам', false);
+        }
+    }
+
+    return {
+        // Called on a timer: the window opens and loads more sellers at the site's pace.
+        check() {
+            const switcher = document.querySelector(SWITCHER);
+            if (!switcher || !rowsBox()) {
+                if (button && !button.isConnected) {
+                    button = null;
+                    sorted = false;
+                    rowsWatch.disconnect();
+                }
+                return;
+            }
+            if (!button || !button.isConnected) {
+                sorted = false;
+                makeButton(switcher);
+            }
+            rows().forEach(row => {
+                if (!row.dataset.ssmSeen) {
+                    row.dataset.ssmSeen = '1';
+                    // Reviews of this seller on this product, read before the shop line adds its own number.
+                    row.dataset.ssmCount = String(readCount(row, 'отзыв'));
+                    shopLine(row);
+                    visible.observe(row);
+                }
+            });
         }
     };
 }
@@ -642,6 +998,16 @@ const STYLE = `
         opacity: 0; pointer-events: none; transition: opacity .2s; max-width: ${PANEL_WIDTH}px;
     }
     .toast.show { opacity: .95; }
+    .pill {
+        position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: none; align-items: center; gap: 12px;
+        padding: 6px 6px 6px 16px; border-radius: 999px; background: #fff; color: #1b1d21; font-size: 14px; font-weight: 600;
+        white-space: nowrap; box-shadow: 0 0 0 2px ${FRESH}, 0 8px 24px rgba(0, 0, 0, .18);
+    }
+    .pill.show { display: flex; }
+    .pill button {
+        height: 32px; padding: 0 14px; border: none; border-radius: 999px; background: var(--accent); color: #fff;
+        font-weight: 600; cursor: pointer;
+    }
 `;
 
 function createUi() {
@@ -684,6 +1050,7 @@ function createUi() {
         </div>
         <div class="caret"></div>
         <div class="toast" role="status"></div>
+        <div class="pill" role="status"><span class="pill-text"></span><button type="button">Досортировать</button></div>
     `;
     host.style.setProperty('--accent', site.accent);
     host.style.setProperty('--accent-soft', site.accentSoft);
@@ -702,6 +1069,8 @@ function createUi() {
     const customInput = $('.custom input');
     const keepInput = $('.keep');
     const progress = $('.ring .progress');
+    const pill = $('.pill');
+    const pillText = $('.pill-text');
     const ringLength = 2 * Math.PI * 25;
     let busy = false;
     progress.style.strokeDasharray = String(ringLength);
@@ -879,6 +1248,17 @@ function createUi() {
     window.addEventListener('resize', placeFab, { passive: true });
     placeFab();
 
+    // Fresh cards are announced at the bottom of the window until the strip between the sorted and the fresh
+    // cards is on screen: a user who scrolls fast must not take the sorted part for the whole listing.
+    let freshCount = 0;
+    let stripOnScreen = false;
+    const stripWatch = new IntersectionObserver(entries => {
+        stripOnScreen = entries[entries.length - 1].isIntersecting;
+        pill.classList.toggle('show', freshCount > 0 && !stripOnScreen);
+    });
+    let watchedStrip = null;
+    pill.querySelector('button').addEventListener('click', () => actions.sort());
+
     return {
         setVisible(visible) {
             host.style.display = visible ? '' : 'none';
@@ -907,6 +1287,16 @@ function createUi() {
                 badge.textContent = String(Math.ceil(remainingMs / 1000));
                 progress.style.strokeDashoffset = String(ringLength * (remainingMs / totalMs));
             }
+        },
+        showFresh(count, strip = null) {
+            freshCount = count;
+            if (strip && strip !== watchedStrip) {
+                stripWatch.disconnect();
+                stripWatch.observe(strip);
+                watchedStrip = strip;
+            }
+            pillText.textContent = `Ещё ${counted(count, GOODS)} без сортировки`;
+            pill.classList.toggle('show', count > 0 && !stripOnScreen);
         },
         keepSorted: () => keepInput.checked,
         toast(text) {
@@ -992,30 +1382,22 @@ const actions = {
                     handler: () => actions.sort()
                 });
                 site.placeBanner(banner.node);
+                ui.showFresh(fresh, banner.node);
             } else {
                 ui.render({
                     main: `Отсортировано <b>${counted(lastResult.count, GOODS)}</b>`,
-                    sub: `Наверху ${counted(lastResult.top, site.countForms)}`,
+                    sub: `Наверху ${counted(lastResult.top, site.countForms)}. Листайте дальше - сайт догрузит новые`,
                     badgeText: String(lastResult.count),
                     sortText,
                     sorted: true
                 });
-                if (site.id === 'ozon') {
-                    const seconds = store.get('lastSeconds', 0) || SCROLL_PRESETS[1];
-                    banner.set({
-                        text: `Это ${counted(lastResult.count, GOODS)} по ${site.countWord}`,
-                        action: `Догрузить ещё (${seconds} с)`,
-                        fresh: false,
-                        handler: () => actions.scrollAndSort(seconds)
-                    });
-                    site.placeBanner(banner.node);
-                } else {
-                    banner.node.remove();
-                }
+                banner.node.remove();
+                ui.showFresh(0);
             }
             return;
         }
         banner.node.remove();
+        ui.showFresh(0);
         site.capture();
         const loaded = site.visibleCount();
         ui.render({
@@ -1144,6 +1526,7 @@ const actions = {
         site.restore();
         lastResult = null;
         banner.node.remove();
+        ui.showFresh(0);
         publish('busy');
         actions.showBusy('Сайт обновляет выдачу', wasSorted && ui.keepSorted() ? 'Отсортирую, когда загрузится' : '');
         const startedAt = Date.now();
@@ -1224,6 +1607,9 @@ const ui = createUi();
 
 let captureTimer = 0;
 new MutationObserver(records => {
+    if (site.isSorted()) {
+        site.hideSorted();
+    }
     if (captureTimer || scrollRun || records.every(record => site.isOwnNode(record.target))) {
         return;
     }
@@ -1252,8 +1638,23 @@ function retireOldScript() {
     }
 }
 
+const offers = site.id === 'ozon' ? createOzonOffers() : null;
+
+// The site's own window (sign-in, all filters) is a fixed layer over the whole screen; the button would float
+// above its shade, so it steps aside while the window is open.
+function siteDialogOpen() {
+    for (let node = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2); node && node !== document.body; node = node.parentElement) {
+        if (getComputedStyle(node).position === 'fixed') {
+            const box = node.getBoundingClientRect();
+            return box.width >= window.innerWidth * 0.9 && box.height >= window.innerHeight * 0.9;
+        }
+    }
+    return false;
+}
+
 setInterval(() => {
     retireOldScript();
+    offers?.check();
     // The site re-drew the sorted list without changing the listing: sort it again, the user asked for it.
     if (site.heal()) {
         lastResult = null;
@@ -1263,7 +1664,7 @@ setInterval(() => {
             actions.refresh();
         }
     }
-    ui.setVisible(site.isListing() || site.isSorted() || Boolean(scrollRun));
+    ui.setVisible((site.isListing() || site.isSorted() || Boolean(scrollRun)) && !siteDialogOpen());
     const next = listingKey();
     if (next !== currentListing) {
         currentListing = next;

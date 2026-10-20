@@ -15,13 +15,17 @@ comments and commits are in English.
 - There are no unit tests: the sites change their markup, so every change is checked on live ozon.ru and
   wildberries.ru in a real Chrome with the built extension or the userscript (`test/inject.sh` injects the built
   script into an open tab over CDP). Check: sort, "Как было", a filter change, a category change, the "+N" badge for
-  late cards, the button position after reload, the address command `?sulimarket=10` and `#sulimarket-result`.
+  late cards, the button position after reload, the address command `?sulimarket=10` and `#sulimarket-result`, a plain scroll after the sort on Ozon (the site loads
+  more, "Ещё N товаров без сортировки" shows at the bottom), the Ozon sellers window ("Есть дешевле": shop lines,
+  "По отзывам").
 - Release: bump `package.json`, add a `CHANGELOG.md` entry, build, `gh release create vX.Y.Z` with
   `dist/sulimarket.user.js`, `dist/ssmarket-bridge.user.js` and the zip. Userscripts update from `releases/latest`.
 
 ## Rules
 
-- No network requests, no analytics, no remote code: the privacy policy (`PRIVACY.md`) and the store listing promise it.
+- No network requests to us or third parties, no analytics, no remote code: the privacy policy (`PRIVACY.md`) and the
+  store listing promise it. The one request allowed is Ozon's own shop facts (`/modal/shop-in-shop-info` through
+  `entrypoint-api.bx`) in the sellers window; any new request changes `PRIVACY.md` first.
 - Do not touch the site's own nodes beyond what is needed: Ozon gets a sorted copy of the grid, Wildberries cards get
   CSS `order`. Our nodes carry `data-ssm-*` or ids starting with `sulimarket`.
 - Texts follow the owner's typography: short dash `-`, straight quotes `"..."`, no em dash, no guillemets.

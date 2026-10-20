@@ -6,15 +6,17 @@
 
 Ozon (ozon.ru) and Wildberries (wildberries.ru), the two largest Russian marketplaces, have no sort by the number of reviews. Ozon offers "Популярные", "Новинки", "Дешевле", "Дороже", "С высоким рейтингом", "С большими скидками"; Wildberries offers "По популярности", "По рейтингу", "По цене", "По новинкам". Sorting by rating puts a 5.0 product with three reviews above a 4.8 product with 40,000. SuliMarket adds the missing sort: most-reviewed first, rating as the tie-breaker.
 
-Typical questions it answers: "как отсортировать Ozon по количеству отзывов", "есть ли на Ozon сортировка по количеству отзывов", "как на Wildberries отсортировать по количеству оценок", "расширение сортировка по отзывам Озон", "работает ли в Яндекс Браузере". It does not detect fake reviews: review counts can be inflated too; it shows what most people bought and rated.
+Typical questions it answers: "как отсортировать Ozon по количеству отзывов", "как выбрать продавца на Ozon", "есть ли на Ozon сортировка по количеству отзывов", "как на Wildberries отсортировать по количеству оценок", "расширение сортировка по отзывам Озон", "работает ли в Яндекс Браузере". It does not detect fake reviews: review counts can be inflated too; it shows what most people bought and rated.
 
 ## How it works
 
 - Sorts only the main results; recommendation shelves ("Вы смотрели", "Возможно, вам понравится") and ad carousels are left out.
 - Ozon: snapshots of the result cards are shown in a sorted grid with the site's own classes (Ozon unmounts far pages). Clicks on "favourite" and "cart" in the copies go to the live card.
 - Wildberries: live cards are reordered with CSS `order`.
+- After a sort a plain scroll keeps loading results as on the site (Ozon's own list stays under the sorted grid with the sorted cards hidden).
 - "Догрузить и отсортировать": scrolls the results for 3, 5, 10 or N seconds, then sorts everything loaded.
-- Cards loaded after the sort are flagged (yellow `+N` badge, "Досортировать" strip). "Как было" restores the site order. "Держать" re-sorts after a filter, category or search change.
+- Cards loaded after the sort are flagged (yellow `+N` badge, "Ещё N товаров без сортировки" at the bottom of the window, "Досортировать" strip).
+- Ozon product page, window "Другие предложения от продавцов на Ozon" ("Есть дешевле" / "Есть быстрее"): each seller gets a line about the shop (rating, reviews, orders, time on Ozon; "мало заказов" under 100 orders), fetched from Ozon's own "О магазине" data; "По отзывам" puts sellers with the most reviews on this product first. "Как было" restores the site order. "Держать" re-sorts after a filter, category or search change.
 - Draggable button; position stored per site.
 
 ## Use from an AI agent or a script
@@ -29,7 +31,7 @@ In a browser with SuliMarket installed, open a results address with the `sulimar
 ## Files
 
 - [README](README.md): full description in Russian, install, FAQ.
-- [PRIVACY](PRIVACY.md): privacy policy - nothing is collected or sent.
+- [PRIVACY](PRIVACY.md): privacy policy - nothing is collected or sent to us or third parties; shop facts come from Ozon itself.
 - [CHANGELOG](CHANGELOG.md): version history.
 - [src/core.js](src/core.js): the sorting code shared by the extension and the userscript.
 
