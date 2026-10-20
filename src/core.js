@@ -20,9 +20,12 @@ function parseCount(text) {
     return parseInt(String(text).replace(/[^\d]/g, ''), 10) || 0;
 }
 
+// Our shop lines inside the site's cards carry counts of their own and are left out.
 function leafTexts(root) {
     const texts = [];
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: node => (node.parentElement?.closest('[data-ssm-shop]') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT)
+    });
     while (walker.nextNode()) {
         const text = walker.currentNode.textContent.replace(/\s+/g, ' ').trim();
         if (text) {
@@ -947,6 +950,422 @@ function createOzonOffers() {
     };
 }
 
+// ------------------------------------------------- Wildberries: who sells
+// Wildberries gives its seller facts to the site itself: a product's card file names the seller, and one request
+// returns rating, ratings, sales and the start date of many sellers at once. SuliMarket shows them under each card
+// of the results, under the seller on a product page and on each row of "Предложения продавцов" (the same product
+// from other sellers), and puts those rows in order of ratings on request.
+function createWbSellers() {
+    const CARD = '.product-card-list article[data-nm-id]';
+    const CARD_TITLE = 'h2';
+    const OFFERS_PAGE = /^\/catalog\/\d+\/other-sellers/;
+    const OFFER_ROW = 'li[data-testid="seller-item"]';
+    const OFFER_TEXT = '[class*="description"]';
+    const SELLER_LINK = 'a[href*="/seller/"]';
+    const PRODUCT_SELLER = '[class*="sellerInfoWrap"]';
+    const SITE_SORT = ['Популярности', 'Возрастанию цены'];
+    const FACTS_URL = 'https://suppliers-shipment-2.wildberries.ru/api/v1/suppliers/find_by_ids';
+    const NAME_URL = 'https://static-basket-01.wbbasket.ru/vol0/data/supplier-by-id/';
+    const FEW_SALES = 100;
+    const NAME_CHARS = 24;
+    const FACTS_BATCH = 50;
+    const FACTS_GATHER_MS = 600;
+    const SORT_WAIT_MS = 6000;
+    // Same pace as on Ozon: two requests at a time with a pause, under ~8 a second.
+    const FETCHES_AT_ONCE = 2;
+    const FETCH_PAUSE_MS = 200;
+    const TAIL_ORDER = 100000;
+    const MUTED = '#5f6670';
+    const WARN = '#b25e00';
+
+    const memo = new Map();
+    const queue = [];
+    const asked = new Map();
+    let fetching = 0;
+    let gatherTimer = 0;
+    let button = null;
+    let sorted = false;
+    const rowsWatch = new MutationObserver(() => placeTail());
+    const visible = new IntersectionObserver(entries => entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            visible.unobserve(entry.target);
+            tileShop(entry.target);
+        }
+    }), { rootMargin: '400px 0px' });
+
+    function limited(task) {
+        return new Promise((resolve, reject) => {
+            queue.push({ task, resolve, reject });
+            pump();
+        });
+    }
+
+    function pump() {
+        while (fetching < FETCHES_AT_ONCE && queue.length) {
+            const job = queue.shift();
+            fetching += 1;
+            job.task().then(job.resolve, job.reject).finally(() => wait(FETCH_PAUSE_MS).then(() => {
+                fetching -= 1;
+                pump();
+            }));
+        }
+    }
+
+    async function getJson(url, options) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(String(response.status));
+        }
+        return response.json();
+    }
+
+    // Each answer is asked once and kept for the tab's life.
+    function remembered(key, load) {
+        if (!memo.has(key)) {
+            const kept = sessionStorage.getItem(`sulimarket:${key}`);
+            memo.set(key, kept ? Promise.resolve(JSON.parse(kept)) : load().then(value => {
+                sessionStorage.setItem(`sulimarket:${key}`, JSON.stringify(value));
+                return value;
+            }));
+        }
+        return memo.get(key);
+    }
+
+    // The card file sits next to the card's pictures on the same storage server.
+    function sellerOfCard(card) {
+        const picture = card.querySelector('img[src*="/images/"]')?.src || '';
+        if (!picture.includes(`/${card.dataset.nmId}/images/`)) {
+            return Promise.resolve(0);
+        }
+        const address = picture.replace(/\/images\/.*$/, '/info/ru/card.json');
+        return remembered(`wb:seller-of:${card.dataset.nmId}`, () => limited(() => getJson(address))
+            .then(info => info.selling?.supplier_id || 0));
+    }
+
+    function facts(id) {
+        return remembered(`wb:shop:${id}`, () => new Promise((resolve, reject) => {
+            asked.set(id, { resolve, reject });
+            clearTimeout(gatherTimer);
+            gatherTimer = setTimeout(askFacts, FACTS_GATHER_MS);
+        }));
+    }
+
+    // Sellers wanted within a moment of each other go in one request, up to FACTS_BATCH at a time.
+    function askFacts() {
+        const jobs = Array.from(asked.entries());
+        asked.clear();
+        for (let start = 0; start < jobs.length; start += FACTS_BATCH) {
+            const batch = jobs.slice(start, start + FACTS_BATCH);
+            limited(() => getJson(FACTS_URL, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', 'x-client-name': 'site' },
+                body: JSON.stringify(batch.map(([id]) => Number(id)))
+            })).then(answer => {
+                const byId = new Map(answer.map(shop => [String(shop.id), shop]));
+                batch.forEach(([id, job]) => {
+                    const shop = byId.get(id);
+                    job.resolve(shop ? {
+                        rating: shop.valuation || '',
+                        ratings: shop.feedbacksCount || 0,
+                        sales: shop.saleItemQuantity || 0,
+                        since: shop.registrationDate || ''
+                    } : null);
+                });
+            }, error => batch.forEach(([, job]) => job.reject(error)));
+        }
+    }
+
+    function shopName(id) {
+        return remembered(`wb:name:${id}`, () => limited(() => getJson(`${NAME_URL}${id}.json`))
+            .then(info => info.trademark || info.supplierName || ''));
+    }
+
+    // 2 600 000 -> "2,6 млн", 14 762 -> "15 тыс.", 984 -> "984".
+    function big(count, forms) {
+        if (count >= 1e6) {
+            return `${String(Math.round(count / 1e5) / 10).replace('.', ',')} млн ${forms[2]}`;
+        }
+        if (count >= 1e4) {
+            return `${Math.round(count / 1000)} тыс. ${forms[2]}`;
+        }
+        return counted(count, forms);
+    }
+
+    function age(since) {
+        const months = Math.floor((Date.now() - Date.parse(since)) / (30.44 * 24 * 3600 * 1000));
+        if (!(months >= 1)) {
+            return 'меньше месяца';
+        }
+        return months < 12 ? counted(months, ['месяц', 'месяца', 'месяцев'])
+            : counted(Math.floor(months / 12), ['год', 'года', 'лет']);
+    }
+
+    // parts: which facts the site does not show at this place already; "year" is the short start for narrow cards.
+    function describe(shop, parts) {
+        const out = [];
+        if (parts.includes('rating') && shop.rating) {
+            out.push(`★ ${String(shop.rating).replace('.', ',')}`);
+        }
+        if (parts.includes('ratings') && shop.ratings) {
+            out.push(big(shop.ratings, ['оценка', 'оценки', 'оценок']));
+        }
+        out.push(shop.sales ? big(shop.sales, ['продажа', 'продажи', 'продаж']) : 'нет продаж');
+        if (shop.since) {
+            out.push(parts.includes('year') ? `с ${shop.since.slice(0, 4)}` : `${age(shop.since)} на WB`);
+        }
+        return out.join(' · ');
+    }
+
+    function makeLine(size) {
+        const line = document.createElement('div');
+        line.dataset.ssmShop = '1';
+        line.style.cssText = `font-size: ${size}px; line-height: 1.35; color: ${MUTED}; white-space: normal;`;
+        return line;
+    }
+
+    function fill(line, text, shop) {
+        const few = shop.sales < FEW_SALES;
+        line.textContent = `${text}${few ? ' - мало продаж' : ''}`;
+        line.style.color = few ? WARN : MUTED;
+    }
+
+    // ---- results: a line under the title of each card that comes into view
+    async function tileShop(card) {
+        const nm = card.dataset.nmId;
+        try {
+            const id = await sellerOfCard(card);
+            if (!id) {
+                return;
+            }
+            const [shop, name] = await Promise.all([facts(String(id)), shopName(id).catch(() => '')]);
+            const title = card.querySelector(CARD_TITLE);
+            if (!shop || !title || card.dataset.nmId !== nm) {
+                return;
+            }
+            const line = card.querySelector('[data-ssm-shop]') || makeLine(12);
+            line.style.marginTop = '4px';
+            const shortName = name.length > NAME_CHARS ? `${name.slice(0, NAME_CHARS - 1).trim()}...` : name;
+            fill(line, `${shortName || 'Продавец'} · ${describe(shop, ['rating', 'year'])}`, shop);
+            line.title = `Продавец ${name}: ${describe(shop, ['rating', 'ratings'])}`;
+            if (!line.isConnected) {
+                title.after(line);
+            }
+            card.dataset.ssmShopDrawn = nm;
+        } catch {
+            // The card stays as the site drew it.
+        }
+    }
+
+    function checkTiles() {
+        document.querySelectorAll(CARD).forEach(card => {
+            const nm = card.dataset.nmId;
+            if (card.dataset.ssmWatch !== nm) {
+                card.dataset.ssmWatch = nm;
+                visible.observe(card);
+            } else if (card.dataset.ssmShopDrawn === nm && !card.querySelector('[data-ssm-shop]')) {
+                // The site re-drew the card's insides; the answer is kept, draw it again.
+                tileShop(card);
+            }
+        });
+    }
+
+    // ---- product page: what the site leaves out about its seller
+    function checkProductSeller() {
+        const box = document.querySelector(PRODUCT_SELLER);
+        const link = box?.querySelector(SELLER_LINK);
+        const id = link?.getAttribute('href').match(/\/seller\/(\d+)/)?.[1];
+        if (!id || box.dataset.ssmSeller === id) {
+            return;
+        }
+        box.dataset.ssmSeller = id;
+        // The seller's box sits in rows of flex; the line goes under the outermost row.
+        let anchor = box;
+        while (anchor.parentElement && /flex/.test(getComputedStyle(anchor.parentElement).display)
+            && getComputedStyle(anchor.parentElement).flexDirection === 'row') {
+            anchor = anchor.parentElement;
+        }
+        const old = anchor.nextElementSibling;
+        if (old?.dataset.ssmShop) {
+            old.remove();
+        }
+        facts(id).then(shop => {
+            if (!shop || box.dataset.ssmSeller !== id) {
+                return;
+            }
+            const line = makeLine(13);
+            line.style.marginTop = '4px';
+            fill(line, `Магазин: ${describe(shop, ['ratings'])}`, shop);
+            anchor.after(line);
+        }, () => {});
+    }
+
+    // ---- "Предложения продавцов": a line on each row and the order of ratings
+    function rows() {
+        return Array.from(document.querySelectorAll(OFFER_ROW));
+    }
+
+    function rowSeller(row) {
+        return row.querySelector(SELLER_LINK)?.getAttribute('href').match(/\/seller\/(\d+)/)?.[1] || '';
+    }
+
+    function rowShop(row) {
+        const id = rowSeller(row);
+        if (!id) {
+            return Promise.resolve(null);
+        }
+        return facts(id).then(shop => {
+            if (shop) {
+                row.dataset.ssmRatings = String(shop.ratings);
+                // Under the seller's name and marks, inside the seller's own column.
+                const link = row.querySelector(SELLER_LINK);
+                const column = link.querySelector('[class*="wrapper"]') || link;
+                const line = row.querySelector('[data-ssm-shop]') || makeLine(13);
+                line.style.margin = '2px 0 0';
+                fill(line, describe(shop, []), shop);
+                if (!line.isConnected) {
+                    column.appendChild(line);
+                }
+            }
+            return shop;
+        }, () => null);
+    }
+
+    function siteSortButtons() {
+        return Array.from(document.querySelectorAll('button')).filter(node => SITE_SORT.includes(node.textContent.trim()));
+    }
+
+    // The site's sort choices are words; ours is a word in the site's accent while it holds the order.
+    function setLabel(text, active = sorted) {
+        button.querySelector('span').textContent = text;
+        button.style.color = active ? site.accent : '';
+        button.style.fontWeight = active ? '600' : '';
+    }
+
+    function makeButton(siteButton) {
+        const item = siteButton.closest('li') || siteButton;
+        const holder = item.cloneNode(false);
+        button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.ssmOffersSort = '1';
+        button.className = siteButton.className.split(/\s+/).filter(name => !name.startsWith('selected')).join(' ');
+        button.innerHTML = '<span></span>';
+        button.firstChild.className = siteButton.querySelector('span')?.className || '';
+        button.title = 'SuliMarket: продавцы с большим числом оценок на этот товар - наверху';
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            sortRows();
+        });
+        setLabel('По отзывам', false);
+        if (holder === siteButton) {
+            item.after(button);
+        } else {
+            holder.appendChild(button);
+            item.parentElement.appendChild(holder);
+        }
+        // A site order ("Популярности", "Возрастанию цены") gives the order back to the site.
+        item.parentElement.addEventListener('click', event => {
+            if (!button.contains(event.target)) {
+                unsort();
+            }
+        }, true);
+    }
+
+    async function sortRows() {
+        const all = rows();
+        if (!all.length) {
+            return;
+        }
+        setLabel('Смотрю магазины', true);
+        await Promise.race([Promise.all(all.map(rowShop)), wait(SORT_WAIT_MS)]);
+        const box = all[0].parentElement;
+        const items = all.map((row, index) => ({
+            row,
+            count: readCount(row.querySelector(OFFER_TEXT) || row, 'оцен'),
+            shop: Number(row.dataset.ssmRatings || 0),
+            index
+        })).sort((a, b) => (b.count - a.count) || (b.shop - a.shop) || (a.index - b.index));
+        box.style.display = 'flex';
+        box.style.flexDirection = 'column';
+        items.forEach((item, index) => {
+            item.row.style.order = String(index + 1);
+            item.row.dataset.ssmPlaced = '1';
+        });
+        sorted = true;
+        placeTail();
+        rowsWatch.disconnect();
+        rowsWatch.observe(box, { childList: true });
+        setLabel(`По отзывам: ${all.length}`);
+    }
+
+    // Rows loaded after the sort go under the sorted ones.
+    function placeTail() {
+        const box = rows()[0]?.parentElement;
+        if (!sorted || !box) {
+            return;
+        }
+        let fresh = 0;
+        Array.from(box.children).forEach(child => {
+            if (!child.dataset.ssmPlaced) {
+                child.style.order = String(TAIL_ORDER);
+                fresh += child.matches(OFFER_ROW) ? 1 : 0;
+            }
+        });
+        if (fresh) {
+            setLabel(`Досортировать +${fresh}`);
+        }
+    }
+
+    function unsort() {
+        rowsWatch.disconnect();
+        const box = rows()[0]?.parentElement;
+        sorted = false;
+        if (box) {
+            box.style.display = '';
+            box.style.flexDirection = '';
+            Array.from(box.children).forEach(child => {
+                child.style.order = '';
+                delete child.dataset.ssmPlaced;
+            });
+        }
+        if (button) {
+            setLabel('По отзывам', false);
+        }
+    }
+
+    function checkOffersPage() {
+        if (!OFFERS_PAGE.test(location.pathname)) {
+            if (button) {
+                button = null;
+                sorted = false;
+                rowsWatch.disconnect();
+            }
+            return;
+        }
+        const siteButton = siteSortButtons()[0];
+        if (siteButton && (!button || !button.isConnected)) {
+            sorted = false;
+            makeButton(siteButton);
+        }
+        rows().forEach(row => {
+            const id = rowSeller(row);
+            if (row.dataset.ssmSeen !== id) {
+                row.dataset.ssmSeen = id;
+                rowShop(row);
+            }
+        });
+    }
+
+    return {
+        // Called on a timer: the site draws cards and rows at its own pace.
+        check() {
+            checkTiles();
+            checkProductSeller();
+            checkOffersPage();
+        }
+    };
+}
+
 const site = location.hostname.endsWith('ozon.ru') ? createOzon()
     : location.hostname.endsWith('wildberries.ru') ? createWildberries()
         : null;
@@ -1704,7 +2123,7 @@ function retireOldScript() {
     }
 }
 
-const offers = site.id === 'ozon' ? createOzonOffers() : null;
+const offers = site.id === 'ozon' ? createOzonOffers() : createWbSellers();
 
 // The site's own window (sign-in, all filters) is a fixed layer over the whole screen; the button would float
 // above its shade, so it steps aside while the window is open.
@@ -1720,7 +2139,7 @@ function siteDialogOpen() {
 
 setInterval(() => {
     retireOldScript();
-    offers?.check();
+    offers.check();
     // The site re-drew the sorted list without changing the listing: sort it again, the user asked for it.
     if (site.heal()) {
         lastResult = null;

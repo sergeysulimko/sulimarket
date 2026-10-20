@@ -1,6 +1,6 @@
 {
   "name": "sulimarket",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "private": true,
   "description": "Сортировка выдачи Ozon и Wildberries по числу отзывов и оценок",
   "type": "module",

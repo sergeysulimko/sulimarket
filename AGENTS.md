@@ -17,15 +17,19 @@ comments and commits are in English.
   script into an open tab over CDP). Check: sort, "Как было", a filter change, a category change, the "+N" badge for
   late cards, the button position after reload, the address command `?sulimarket=10` and `#sulimarket-result`, a plain scroll after the sort on Ozon (the site loads
   more, "Ещё N товаров без сортировки" shows at the bottom), the Ozon sellers window ("Есть дешевле": shop lines,
-  "По отзывам").
+  "По отзывам"), WB shop lines on result cards, under the seller on a product page and on "Предложения продавцов"
+  (`/catalog/<id>/other-sellers`, "По отзывам").
 - Release: bump `package.json`, add a `CHANGELOG.md` entry, build, `gh release create vX.Y.Z` with
   `dist/sulimarket.user.js`, `dist/ssmarket-bridge.user.js` and the zip. Userscripts update from `releases/latest`.
 
 ## Rules
 
 - No network requests to us or third parties, no analytics, no remote code: the privacy policy (`PRIVACY.md`) and the
-  store listing promise it. The one request allowed is Ozon's own shop facts (`/modal/shop-in-shop-info` through
-  `entrypoint-api.bx`) in the sellers window; any new request changes `PRIVACY.md` first.
+  store listing promise it. Allowed are the sites' own seller facts: Ozon `/modal/shop-in-shop-info` and
+  `/modal/otherOffersFromSellers` through `entrypoint-api.bx`; Wildberries `card.json` on the picture server,
+  `suppliers-shipment-2.wildberries.ru/api/v1/suppliers/find_by_ids`, `static-basket-01.wbbasket.ru/vol0/data/supplier-by-id/`.
+  All go through one queue, at most ~8 a second, and are kept in `sessionStorage`. Any new request changes
+  `PRIVACY.md` first. WB's `/__internal/*` APIs answer 403/498 to a replayed request - do not use them.
 - Do not touch the site's own nodes beyond what is needed: Ozon gets a sorted copy of the grid, Wildberries cards get
   CSS `order`. Our nodes carry `data-ssm-*` or ids starting with `sulimarket`.
 - Texts follow the owner's typography: short dash `-`, straight quotes `"..."`, no em dash, no guillemets.
