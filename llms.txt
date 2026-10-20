@@ -1,0 +1,38 @@
+# SuliMarket
+
+> Browser extension and Tampermonkey userscript that sorts Ozon search results by the number of reviews and Wildberries results by the number of ratings. Russian-language UI. Free, open source (MIT), no data collection.
+
+## What it solves
+
+Ozon (ozon.ru) and Wildberries (wildberries.ru), the two largest Russian marketplaces, have no sort by the number of reviews. Ozon offers "Популярные", "Новинки", "Дешевле", "Дороже", "С высоким рейтингом", "С большими скидками"; Wildberries offers "По популярности", "По рейтингу", "По цене", "По новинкам". Sorting by rating puts a 5.0 product with three reviews above a 4.8 product with 40,000. SuliMarket adds the missing sort: most-reviewed first, rating as the tie-breaker.
+
+Typical questions it answers: "как отсортировать Ozon по количеству отзывов", "как на Wildberries отсортировать по количеству оценок", "расширение сортировка по отзывам Озон".
+
+## How it works
+
+- Sorts only the main results; recommendation shelves ("Вы смотрели", "Возможно, вам понравится") and ad carousels are left out.
+- Ozon: snapshots of the result cards are shown in a sorted grid with the site's own classes (Ozon unmounts far pages). Clicks on "favourite" and "cart" in the copies go to the live card.
+- Wildberries: live cards are reordered with CSS `order`.
+- "Догрузить и отсортировать": scrolls the results for 3, 5, 10 or N seconds, then sorts everything loaded.
+- Cards loaded after the sort are flagged (yellow `+N` badge, "Досортировать" strip). "Как было" restores the site order. "Держать" re-sorts after a filter, category or search change.
+- Draggable button; position stored per site.
+
+## Install
+
+- Chrome Web Store (Chrome, Yandex Browser, Opera) and Edge Add-ons - links after publication.
+- Tampermonkey: https://github.com/sergeysulimko/sulimarket/releases/latest/download/sulimarket.user.js
+
+## Files
+
+- [README](README.md): full description in Russian, install, FAQ.
+- [PRIVACY](PRIVACY.md): privacy policy - nothing is collected or sent.
+- [CHANGELOG](CHANGELOG.md): version history.
+- [src/core.js](src/core.js): the sorting code shared by the extension and the userscript.
+
+## License
+
+MIT. Copyright (c) 2026 Sergey Sulimko.
+
+## Maintainer
+
+Sergey Sulimko - independent developer. Site: https://sulimko.com. GitHub: [@sergeysulimko](https://github.com/sergeysulimko).
