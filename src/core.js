@@ -566,6 +566,8 @@ function createWildberries() {
 // The product page opens "Другие предложения от продавцов на Ozon" from "Есть дешевле" / "Есть быстрее". Each
 // seller row gets the shop's own numbers (rating, reviews, orders, time on Ozon) from the same request the site
 // makes for its "О магазине" window, and the rows can be put in order of reviews with CSS `order`.
+// Some product pages (often reached from a brand page) have no such button though other sellers exist; the
+// window also opens as a page of its own, so SuliMarket puts a link to it where the button would be.
 function createOzonOffers() {
     const LIST = '[data-widget="webSellerList"]';
     const SWITCHER = '[data-widget="webSellersSortSwitcher"]';
@@ -573,9 +575,15 @@ function createOzonOffers() {
     const TAIL_ORDER = 100000;
     const LOAD_ALL_MS = 15000;
     const LOAD_STEP_MS = 3000;
-    const STATS_FOR_SORT = 100;
+    const STATS_FOR_SORT = 40;
     const FEW_ORDERS = 100;
-    const FETCHES_AT_ONCE = 3;
+    // Ozon answers a shop in under 0.1 s; two at a time with a pause keeps it under ~8 requests a second.
+    const FETCHES_AT_ONCE = 2;
+    const FETCH_PAUSE_MS = 200;
+    const PRICE_BOX = '[data-widget="webSale"]';
+    const SELLERS_BUTTON = '[data-widget="webBestSeller"]';
+    // The site draws its "Есть дешевле" a moment after the price.
+    const BUTTON_GRACE_MS = 2500;
 
     const shops = new Map();
     const queue = [];
@@ -583,9 +591,11 @@ function createOzonOffers() {
     let button = null;
     let sorted = false;
     let busy = null;
+    let productSeen = { id: '', since: 0, asked: false };
     const rowsWatch = new MutationObserver(() => placeTail());
+    // While "По отзывам" scrolls the window to load all sellers, rows only fly past and are not asked about.
     const visible = new IntersectionObserver(entries => entries.forEach(entry => {
-        if (entry.isIntersecting) {
+        if (entry.isIntersecting && !busy) {
             visible.unobserve(entry.target);
             shopOf(entry.target);
         }
@@ -644,11 +654,14 @@ function createOzonOffers() {
         };
     }
 
-    // One request per shop, a few at a time; the answer is kept for the page's life.
+    // One request per shop, two at a time; the answer is kept for the tab's life.
     function shopOf(row) {
         const id = sellerId(row);
         if (!shops.has(id)) {
-            shops.set(id, new Promise((resolve, reject) => queue.push({ id, resolve, reject })));
+            const kept = sessionStorage.getItem(`sulimarket:shop:${id}`);
+            shops.set(id, kept ? Promise.resolve(JSON.parse(kept)) : new Promise((resolve, reject) => {
+                queue.push({ id, resolve, reject });
+            }));
             pump();
         }
         const promise = shops.get(id);
@@ -660,10 +673,13 @@ function createOzonOffers() {
         while (fetching < FETCHES_AT_ONCE && queue.length) {
             const job = queue.shift();
             fetching += 1;
-            loadShop(job.id).then(job.resolve, job.reject).finally(() => {
+            loadShop(job.id).then(shop => {
+                sessionStorage.setItem(`sulimarket:shop:${job.id}`, JSON.stringify(shop));
+                job.resolve(shop);
+            }, job.reject).finally(() => wait(FETCH_PAUSE_MS).then(() => {
                 fetching -= 1;
                 pump();
-            });
+            }));
         }
     }
 
@@ -852,9 +868,59 @@ function createOzonOffers() {
         }
     }
 
+    function productId() {
+        const match = location.pathname.match(/^\/product\/(?:[^/]*-)?(\d+)\/?$/);
+        return match ? match[1] : '';
+    }
+
+    // One request per product page without the site's button: are there other sellers, and from what price.
+    async function offerHiddenSellers(id, priceBox) {
+        const address = `/modal/otherOffersFromSellers?product_id=${id}&sort=price`;
+        const response = await fetch(`/api/entrypoint-api.bx/page/json/v2?url=${encodeURIComponent(address)}`, { credentials: 'include' });
+        if (!response.ok) {
+            return;
+        }
+        const states = Object.entries((await response.json()).widgetStates || {});
+        const list = states.find(([key]) => key.startsWith('webSellerList'));
+        const sellers = list ? JSON.parse(list[1]).sellers || [] : [];
+        if (!sellers.length || productId() !== id || document.querySelector(SELLERS_BUTTON)) {
+            return;
+        }
+        const price = sellers[0].price?.cardPrice?.price || sellers[0].price?.price || '';
+        const link = document.createElement('a');
+        link.dataset.ssmSellers = '1';
+        link.href = address;
+        link.target = '_blank';
+        link.title = 'SuliMarket: Ozon не показал кнопку "Есть дешевле" на этой странице';
+        link.style.cssText = 'display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px 16px;'
+            + ' border-radius: 16px; background: #f2f3f5; color: #1b1d21; text-decoration: none; font-size: 15px; line-height: 1.3;';
+        link.innerHTML = `<span style="color: ${site.accent}; display: grid;">${ICON_SORT}</span><span><span style="color: #5f6670;">Другие продавцы - ${counted(sellers.length, ['предложение', 'предложения', 'предложений'])}</span><br><b></b></span>`;
+        link.querySelector('b').textContent = price ? `от ${price}` : 'смотреть';
+        priceBox.appendChild(link);
+    }
+
+    function checkProductPage() {
+        const id = productId();
+        if (id !== productSeen.id) {
+            productSeen = { id, since: 0, asked: false };
+        }
+        const priceBox = id && !productSeen.asked && document.querySelector(PRICE_BOX);
+        if (!priceBox) {
+            return;
+        }
+        if (!productSeen.since) {
+            productSeen.since = Date.now();
+        }
+        if (Date.now() - productSeen.since >= BUTTON_GRACE_MS && !document.querySelector(SELLERS_BUTTON)) {
+            productSeen.asked = true;
+            offerHiddenSellers(id, priceBox);
+        }
+    }
+
     return {
         // Called on a timer: the window opens and loads more sellers at the site's pace.
         check() {
+            checkProductPage();
             const switcher = document.querySelector(SWITCHER);
             if (!switcher || !rowsBox()) {
                 if (button && !button.isConnected) {

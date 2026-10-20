@@ -16,7 +16,7 @@ Typical questions it answers: "как отсортировать Ozon по ко�
 - After a sort a plain scroll keeps loading results as on the site (Ozon's own list stays under the sorted grid with the sorted cards hidden).
 - "Догрузить и отсортировать": scrolls the results for 3, 5, 10 or N seconds, then sorts everything loaded.
 - Cards loaded after the sort are flagged (yellow `+N` badge, "Ещё N товаров без сортировки" at the bottom of the window, "Досортировать" strip).
-- Ozon product page, window "Другие предложения от продавцов на Ozon" ("Есть дешевле" / "Есть быстрее"): each seller gets a line about the shop (rating, reviews, orders, time on Ozon; "мало заказов" under 100 orders), fetched from Ozon's own "О магазине" data; "По отзывам" puts sellers with the most reviews on this product first. "Как было" restores the site order. "Держать" re-sorts after a filter, category or search change.
+- Ozon product page, window "Другие предложения от продавцов на Ozon" ("Есть дешевле" / "Есть быстрее"): each seller gets a line about the shop (rating, reviews, orders, time on Ozon; "мало заказов" under 100 orders), fetched from Ozon's own "О магазине" data; "По отзывам" puts sellers with the most reviews on this product first. When Ozon hides "Есть дешевле" on a product page but other sellers exist, SuliMarket adds "Другие продавцы - N предложений, от X" linking to the same list as a page (`/modal/otherOffersFromSellers?product_id=<id>&sort=price`). "Как было" restores the site order. "Держать" re-sorts after a filter, category or search change.
 - Draggable button; position stored per site.
 
 ## Use from an AI agent or a script

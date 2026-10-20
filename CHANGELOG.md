@@ -2,6 +2,18 @@
 
 Формат - [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии - [semver](https://semver.org/lang/ru/).
 
+## [3.3.0] - 2026-10-20
+
+### Добавлено
+
+- Ozon прячет кнопку "Есть дешевле" на части страниц товара (часто при входе со страницы бренда), хотя другие
+  продавцы есть. SuliMarket спрашивает у Ozon список и ставит на это место "Другие продавцы - N предложений, от X".
+  Ссылка открывает тот же список отдельной страницей, со строками о магазинах и кнопкой "По отзывам".
+
+### Изменено
+
+- Сведения о магазинах запрашиваются не чаще 8 раз в секунду и запоминаются во вкладке: повторно Ozon не спрашиваем.
+
 ## [3.2.0] - 2026-10-20
 
 ### Добавлено
@@ -80,6 +92,7 @@
 
 Первая версия: скрипт Tampermonkey SSMarket с сортировкой Ozon и Wildberries по отзывам.
 
+[3.3.0]: https://github.com/sergeysulimko/sulimarket/releases/tag/v3.3.0
 [3.2.0]: https://github.com/sergeysulimko/sulimarket/releases/tag/v3.2.0
 [3.1.0]: https://github.com/sergeysulimko/sulimarket/releases/tag/v3.1.0
 [3.0.0]: https://github.com/sergeysulimko/sulimarket/releases/tag/v3.0.0
