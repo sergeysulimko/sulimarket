@@ -54,6 +54,15 @@ ${indented}
 })();
 `);
 
+// SSMarket 2.x was installed under another @name/@namespace, so Tampermonkey would add SuliMarket next to it.
+// This bridge keeps the old identity (Tampermonkey offers "Обновить" over 2.x) and points its update URL at
+// SuliMarket; the next update check renames the same entry in place (checked on Tampermonkey 5.5.1, 20.10.2026).
+const bridgeHeader = header
+    .replace('// @name         SuliMarket', '// @name         SSMarket')
+    .replace('// @namespace    https://sulimko.com/', '// @namespace    http://tampermonkey.net/')
+    .replace(`// @version      ${version}`, '// @version      2.9.0');
+writeFileSync('dist/ssmarket-bridge.user.js', readFileSync('dist/sulimarket.user.js', 'utf8').replace(header, bridgeHeader));
+
 // --------------------------------------------------------------- Extension
 writeFileSync('dist/extension/content.js', `(async function () {
     'use strict';
@@ -94,4 +103,4 @@ for (const size of [16, 32, 48, 128]) {
 }
 execFileSync('zip', ['-qr', `../sulimarket-${version}-extension.zip`, '.'], { cwd: 'dist/extension' });
 
-console.log(`built ${version}: dist/sulimarket.user.js, dist/extension/, dist/sulimarket-${version}-extension.zip`);
+console.log(`built ${version}: dist/sulimarket.user.js, dist/ssmarket-bridge.user.js, dist/extension/, dist/sulimarket-${version}-extension.zip`);

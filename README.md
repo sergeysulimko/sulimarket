@@ -85,8 +85,13 @@ SuliMarket - расширение для браузера, которое сор
 1. Откройте [`sulimarket.user.js`](https://github.com/sergeysulimko/sulimarket/releases/latest/download/sulimarket.user.js).
 2. Tampermonkey покажет страницу установки - нажмите "Установить".
 
-Скрипт проверяет обновления сам. Если раньше стоял SSMarket - старое имя этого же скрипта, - удалите его в панели
-Tampermonkey. SuliMarket уберёт кнопку SSMarket со страницы и один раз напомнит об этом.
+Скрипт проверяет обновления сам.
+
+**Раньше стоял SSMarket** (старое имя этого же скрипта)? Откройте
+[`ssmarket-bridge.user.js`](https://github.com/sergeysulimko/sulimarket/releases/latest/download/ssmarket-bridge.user.js)
+и нажмите "Обновить". Tampermonkey обновит SSMarket, а при следующей проверке обновлений сам переименует его в
+SuliMarket - второй копии не будет. Если SuliMarket всё же поставлен рядом со SSMarket, он уберёт кнопку SSMarket со
+страницы и один раз напомнит удалить старый скрипт.
 
 ### Вручную, без магазина
 
