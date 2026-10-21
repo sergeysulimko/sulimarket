@@ -35,3 +35,6 @@ comments and commits are in English.
 - Texts follow the owner's typography: short dash `-`, straight quotes `"..."`, no em dash, no guillemets.
 - Store texts live in `store/chrome-web-store.md`, the sulimko.com page text in `site/sulimko-com-page.md`; keep the
   FAQ wording identical in README, store and site.
+- This repo is public. The owner's product journal (his words about the product), the internal roadmap and the design
+  boards live in the private product home `sulimko-com/docs/products/sulimarket/`, never here. Before a push the
+  global `public-repo-guard` hook checks secrets and private marks; do not pass it with `--no-verify` unread.
