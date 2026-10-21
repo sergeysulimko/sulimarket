@@ -9,7 +9,7 @@ const indented = core.split('\n').map(line => (line ? `    ${line}` : line)).joi
 
 const REPO = 'https://github.com/sergeysulimko/sulimarket';
 const MATCHES = ['https://www.ozon.ru/*', 'https://www.wildberries.ru/*'];
-const DESCRIPTION = 'Сортирует выдачу Ozon и Wildberries по количеству отзывов и оценок. Только основная выдача, вёрстка сайта цела.';
+const DESCRIPTION = 'Сортирует Ozon и Wildberries по количеству отзывов и оценок, показывает, кто продаёт товар. Вёрстка сайта цела.';
 
 rmSync('dist', { recursive: true, force: true });
 mkdirSync('dist/extension/icons', { recursive: true });
@@ -83,7 +83,7 @@ ${indented}
 
 const manifest = {
     manifest_version: 3,
-    name: 'SuliMarket - сортировка Ozon и WB по отзывам',
+    name: 'SuliMarket - сортировка Ozon и Wildberries по отзывам',
     short_name: 'SuliMarket',
     version,
     description: DESCRIPTION,

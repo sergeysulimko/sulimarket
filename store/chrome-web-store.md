@@ -7,8 +7,8 @@
 
 | Поле | Значение |
 | --- | --- |
-| Название (из manifest) | SuliMarket - сортировка Ozon и WB по отзывам |
-| Краткое описание (из manifest, до 132 знаков) | Сортирует выдачу Ozon и Wildberries по количеству отзывов и оценок. Только основная выдача, вёрстка сайта цела. |
+| Название (из manifest) | SuliMarket - сортировка Ozon и Wildberries по отзывам |
+| Краткое описание (из manifest, до 132 знаков) | Сортирует Ozon и Wildberries по количеству отзывов и оценок, показывает, кто продаёт товар. Вёрстка сайта цела. |
 | Категория | Покупки (Shopping) |
 | Язык | Русский |
 | Сайт | https://github.com/sergeysulimko/sulimarket; когда страница на sulimko.com заработает - https://sulimko.com/sulimarket |
