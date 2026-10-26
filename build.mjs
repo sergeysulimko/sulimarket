@@ -11,6 +11,18 @@ const REPO = 'https://github.com/sergeysulimko/sulimarket';
 const MATCHES = ['https://www.ozon.ru/*', 'https://www.wildberries.ru/*'];
 const DESCRIPTION = 'Сортирует Ozon и Wildberries по числу отзывов и оценок. Показывает, кто продаёт товар: оценку магазина, продажи и стаж.';
 
+// The GitHub page and the site page show the version: stamp it here so a release never leaves them on an old one.
+if (!readFileSync('CHANGELOG.md', 'utf8').includes(`## [${version}]`)) {
+    throw new Error(`CHANGELOG.md has no entry for ${version}`);
+}
+for (const [file, pattern, text] of [
+    ['README.md', /версия-\d+\.\d+\.\d+/, `версия-${version}`],
+    ['README.md', /"version": "\d+\.\d+\.\d+"/, `"version": "${version}"`],
+    ['site/sulimko-com-page.md', /"softwareVersion": "\d+\.\d+\.\d+"/, `"softwareVersion": "${version}"`],
+]) {
+    writeFileSync(file, readFileSync(file, 'utf8').replace(pattern, text));
+}
+
 rmSync('dist', { recursive: true, force: true });
 mkdirSync('dist/extension/icons', { recursive: true });
 

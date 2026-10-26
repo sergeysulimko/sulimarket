@@ -19,8 +19,13 @@ comments and commits are in English.
   more, "Ещё N товаров без сортировки" shows at the bottom), the Ozon sellers window ("Есть дешевле": shop lines,
   "По отзывам"), WB shop lines on result cards, under the seller on a product page and on "Предложения продавцов"
   (`/catalog/<id>/other-sellers`, "По отзывам").
-- Release: bump `package.json`, add a `CHANGELOG.md` entry, build, `gh release create vX.Y.Z` with
-  `dist/sulimarket.user.js`, `dist/ssmarket-bridge.user.js` and the zip. Userscripts update from `releases/latest`.
+- Release: bump `package.json`, add a `CHANGELOG.md` entry, `node build.mjs` (it stamps the version into README and
+  the site page and fails without a CHANGELOG entry; `scripts/merge-gate.sh` stops /main if the stamp is not
+  committed), /main, then `gh release create vX.Y.Z` from main with `dist/sulimarket.user.js`,
+  `dist/ssmarket-bridge.user.js` and the zip. Userscripts update from `releases/latest`.
+- Chrome store after a release: the API uploads the new zip and submits it (key and calls - `STORES.md` in
+  sulimko-com, `docs/products/sulimarket/`); a review in progress is cancelled first. Description and screenshots
+  change only in the developer console: keep them equal to `store/chrome-web-store.md` and `store/screenshots/`.
 
 ## Rules
 
