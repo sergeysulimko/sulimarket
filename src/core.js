@@ -52,6 +52,13 @@ function readCount(card, word) {
     }, 0);
 }
 
+// Narrow Ozon tiles (a seller badge in the rating row) print the count bare: "4.7", "2 099", "Ozon".
+function readCountAfterRating(texts) {
+    const at = texts.findIndex(text => /^[1-5][.,]\d{1,2}$/.test(text));
+    const next = at < 0 ? '' : texts[at + 1] || '';
+    return /^\d[\d\s ]*$/.test(next) ? parseCount(next) : 0;
+}
+
 function compareItems(a, b) {
     if (!a.count !== !b.count) {
         return a.count ? -1 : 1;
@@ -241,10 +248,11 @@ function createOzon() {
             if (known && known.look === look) {
                 return;
             }
+            const count = readCount(tile, REVIEWS) || readCountAfterRating(leafTexts(tile));
             cache.set(key, {
                 key,
                 look,
-                count: Math.max(known?.count || 0, readCount(tile, REVIEWS)),
+                count: Math.max(known?.count || 0, count),
                 rating: readRating(leafTexts(tile)) || known?.rating || 0,
                 seen: known ? known.seen : cache.size,
                 snapshot: tile.cloneNode(true)
@@ -617,15 +625,23 @@ function createOzonOffers() {
         return row.querySelector(SELLER_LINK).getAttribute('href').match(/(\d+)\/?(?:[?#]|$)/)[1];
     }
 
-    // Short numbers come as "4 240", "44,3 K", "107 K".
+    // Short numbers come as "4 240", "44,3 K", "107 K", "1,8 M".
+    const SHORT_UNITS = { K: [1e3, 'тыс.'], M: [1e6, 'млн'] };
+
+    function shortUnit(text) {
+        return SHORT_UNITS[(text.match(/\d\s*([KM])/i)?.[1] || '').toUpperCase()] || null;
+    }
+
     function readShort(text) {
         const number = parseFloat(text.replace(/[\s ]/g, '').replace(',', '.')) || 0;
-        return /K/i.test(text) ? Math.round(number * 1000) : number;
+        const unit = shortUnit(text);
+        return unit ? Math.round(number * unit[0]) : number;
     }
 
     function shortText(text, forms) {
-        if (/K/i.test(text)) {
-            return `${text.replace(/\s*K/i, '').trim()} тыс. ${forms[2]}`;
+        const unit = shortUnit(text);
+        if (unit) {
+            return `${text.replace(/\s*[KM]\s*$/i, '').trim()} ${unit[1]} ${forms[2]}`;
         }
         return counted(readShort(text), forms);
     }
