@@ -44,7 +44,7 @@ Ozon и Wildberries не умеют сортировать товары по к�
 
 ### Блок "Что умеет" - шесть карточек
 
-1. **Только основная выдача.** Полки "Вы смотрели" и реклама не попадают в сортировку.
+1. **Только основная выдача.** Сортируются товары поиска или категории, остальное на странице остаётся как было.
 2. **Вёрстка сайта цела.** Работают "В избранное", корзина и переход к товару.
 3. **Листайте как обычно.** Сайт догружает выдачу при прокрутке, внизу окна - "Досортировать".
 4. **Кто продаёт.** На Wildberries под каждой карточкой - магазин, его оценка, продажи и год на WB. На Ozon - рейтинг,
@@ -107,7 +107,7 @@ YandexBot, Bingbot, OAI-SearchBot, ChatGPT-User, PerplexityBot, ClaudeBot. Ис�
   "operatingSystem": "Chrome, Яндекс Браузер, Microsoft Edge, Opera",
   "description": "Расширение браузера: сортирует выдачу Ozon по количеству отзывов и Wildberries по количеству оценок.",
   "inLanguage": "ru",
-  "softwareVersion": "3.0.0",
+  "softwareVersion": "3.4.1",
   "license": "https://opensource.org/licenses/MIT",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "RUB" },
   "author": { "@type": "Person", "name": "Сергей Сулимко", "url": "https://sulimko.com" },
