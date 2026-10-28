@@ -86,7 +86,7 @@ SuliMarket - бесплатное расширение для Chrome и Янде
 
 | Браузер | Где взять |
 | --- | --- |
-| Google Chrome, Яндекс Браузер, Opera | Chrome Web Store - ссылка появится после публикации |
+| Google Chrome, Яндекс Браузер, Opera | [Chrome Web Store](https://chromewebstore.google.com/detail/deagbpofnljefkmkaacpfcegbcgpajjo) |
 | Microsoft Edge | Edge Add-ons - ссылка появится после публикации |
 
 Яндекс Браузер, Opera и другие браузеры на Chromium ставят расширения из Chrome Web Store.
