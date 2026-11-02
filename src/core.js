@@ -1762,6 +1762,7 @@ function createUi() {
 
     return {
         setVisible(visible) {
+            visible = visible && store.get('showButton', true);
             host.style.display = visible ? '' : 'none';
             if (!visible) {
                 setOpen(false);
@@ -1800,6 +1801,7 @@ function createUi() {
             pill.classList.toggle('show', count > 0 && !stripOnScreen);
         },
         keepSorted: () => keepInput.checked,
+        setKeepSorted(value) { keepInput.checked = value; },
         toast(text) {
             toastNode.textContent = text;
             placePanel();

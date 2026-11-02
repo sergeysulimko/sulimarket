@@ -1,5 +1,5 @@
 // One source, two products: `npm run build` writes the Tampermonkey script and the browser extension to dist/.
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -90,6 +90,7 @@ writeFileSync('dist/extension/content.js', `(async function () {
     };
 
 ${indented}
+${readFileSync('src/popup-bridge.js', 'utf8')}
 })();
 `);
 
@@ -101,13 +102,19 @@ const manifest = {
     description: DESCRIPTION,
     homepage_url: REPO,
     icons: Object.fromEntries([16, 32, 48, 128].map(size => [size, `icons/icon-${size}.png`])),
-    permissions: ['storage'],
+    permissions: ['storage', 'activeTab'],
+    action: { default_popup: 'popup.html', default_title: 'SuliMarket' },
     content_scripts: [{ matches: MATCHES, js: ['content.js'], run_at: 'document_idle' }]
 };
 if (manifest.description.length > 132) {
     throw new Error(`manifest description is ${manifest.description.length} chars, the store allows 132`);
 }
 writeFileSync('dist/extension/manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
+
+for (const file of ['popup.html', 'popup.css', 'popup.js']) {
+    copyFileSync(`src/${file}`, `dist/extension/${file}`);
+}
+copyFileSync('assets/icon.svg', 'dist/extension/icon.svg');
 
 for (const size of [16, 32, 48, 128]) {
     // assets/icon-512.png is rendered from assets/icon.svg by a browser: ImageMagick's own SVG renderer drops strokes.

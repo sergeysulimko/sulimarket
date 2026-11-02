@@ -1,6 +1,6 @@
 # SuliMarket - сортировка Ozon и Wildberries по количеству отзывов
 
-[![Версия](https://img.shields.io/badge/версия-3.4.1-16181d.svg)](CHANGELOG.md)
+[![Версия](https://img.shields.io/badge/версия-3.5.0-16181d.svg)](CHANGELOG.md)
 [![Лицензия: MIT](https://img.shields.io/badge/лицензия-MIT-blue.svg)](LICENSE)
 [![Chrome и Яндекс Браузер](https://img.shields.io/badge/Chrome%20·%20Яндекс%20·%20Edge-расширение-ffb020.svg)](#как-установить)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-скрипт-00485b.svg)](#через-tampermonkey)
@@ -164,7 +164,7 @@ AI-агент с браузером (Claude, ChatGPT Agent, Operator, Comet, с�
 
    ```json
    {
-     "version": "3.4.1",
+     "version": "3.5.0",
      "site": "ozon",
      "countOf": "reviews",
      "state": "sorted",
@@ -332,6 +332,12 @@ npm run build
 
 Код один - `src/core.js`. Скрипт и расширение отличаются только хранилищем настроек: `GM_getValue` у Tampermonkey и
 `chrome.storage.local` у расширения.
+
+Окно по кнопке Chrome - `src/popup.html`, `src/popup.css` и `src/popup.js`. Оно использует те же действия через
+`src/popup-bridge.js`. Тема окна следует теме устройства. `activeTab` даёт доступ к адресу вкладки только после
+нажатия кнопки расширения; история браузера не читается.
+
+Проверить границы команд окна: `node --test test/popup-bridge.test.mjs`.
 
 Проверка - на живой выдаче: `test/inject.sh` вставляет собранный скрипт в открытую страницу браузера через CDP.
 

@@ -107,7 +107,7 @@ YandexBot, Bingbot, OAI-SearchBot, ChatGPT-User, PerplexityBot, ClaudeBot. Ис�
   "operatingSystem": "Chrome, Яндекс Браузер, Microsoft Edge, Opera",
   "description": "Расширение браузера: сортирует выдачу Ozon по количеству отзывов и Wildberries по количеству оценок.",
   "inLanguage": "ru",
-  "softwareVersion": "3.4.1",
+  "softwareVersion": "3.5.0",
   "license": "https://opensource.org/licenses/MIT",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "RUB" },
   "author": { "@type": "Person", "name": "Сергей Сулимко", "url": "https://sulimko.com" },

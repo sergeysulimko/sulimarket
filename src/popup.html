@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SuliMarket</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="popup.js" defer></script>
+</head>
+<body>
+  <header><img src="icon.svg" width="36" height="36" alt=""><h1>SuliMarket</h1><span id="site" hidden></span></header>
+  <main>
+    <p id="status" role="status">Подключаюсь к вкладке...</p>
+    <section id="controls" aria-label="Сортировка" hidden>
+      <button id="sort" class="primary" type="button">Сортировать по отзывам</button>
+      <button id="stop" class="primary" type="button" hidden>Хватит, сортировать</button>
+      <fieldset id="loading"><legend>Догрузить и отсортировать</legend><div class="load-row">
+        <div class="segments" aria-label="Время догрузки">
+          <button type="button" data-seconds="3" aria-pressed="false">3 с</button>
+          <button type="button" data-seconds="5" aria-pressed="false">5 с</button>
+          <button type="button" data-seconds="10" aria-pressed="false">10 с</button>
+          <input id="seconds" type="number" min="1" max="180" placeholder="N с" aria-label="Своё время догрузки, от 1 до 180 секунд">
+        </div>
+        <button id="play" type="button" aria-label="Догрузить заданное число секунд и отсортировать"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M5 2.5v13L15 9Z" fill="currentColor"/></svg></button>
+      </div></fieldset>
+      <button id="restore" type="button">Как было</button>
+      <label class="setting"><span>Держать сортировку</span><input id="keep" type="checkbox" role="switch"></label>
+      <label class="setting"><span>Показать кнопку на странице</span><input id="show" type="checkbox" role="switch"></label>
+    </section>
+    <section id="other" aria-label="Открыть магазин" hidden>
+      <a class="button primary" href="https://www.ozon.ru/" target="_blank" rel="noopener noreferrer">Открыть Ozon</a>
+      <a class="button" href="https://www.wildberries.ru/" target="_blank" rel="noopener noreferrer">Открыть Wildberries</a>
+      <ol><li>Откройте поиск</li><li>Нажмите кнопку SuliMarket</li><li>Сортируйте по отзывам</li></ol>
+    </section>
+    <p id="error" role="alert" hidden></p>
+  </main>
+  <footer>
+    <a id="review" href="https://chromewebstore.google.com/detail/deagbpofnljefkmkaacpfcegbcgpajjo/reviews" target="_blank" rel="noopener noreferrer">Оценить в Chrome Web Store <span aria-hidden="true">›</span></a>
+    <a href="https://github.com/sergeysulimko/sulimarket" target="_blank" rel="noopener noreferrer">Код на GitHub <span aria-hidden="true">›</span></a>
+    <a href="https://sulimko.com/sulimarket/privacy" target="_blank" rel="noopener noreferrer">Конфиденциальность <span aria-hidden="true">›</span></a>
+    <small id="version"></small>
+  </footer>
+</body>
+</html>
