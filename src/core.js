@@ -1,6 +1,21 @@
 // SuliMarket core: shared by the Tampermonkey script and the browser extension.
 // The build wraps it in a function and passes `store` - a synchronous key-value store of the host.
 const VERSION = '__VERSION__';
+const BRAND_ACCENT = '#C8FF00';
+const BRAND_INK = '#03080A';
+
+// Theme only our own nodes; marketplace markup and colors remain owned by the site.
+function themeRules(selector) {
+    return `${selector} {
+        --ssm-bg: #FCFCFE; --ssm-text: #111418; --ssm-muted: #535D6A;
+        --ssm-surface: #F0F2F5; --ssm-border: #D3D9E1; --ssm-fresh: #F4FAD9;
+    }
+    @media (prefers-color-scheme: dark) { ${selector} {
+        --ssm-bg: #101316; --ssm-text: #F3F5F8; --ssm-muted: #B9C2CF;
+        --ssm-surface: #1C2127; --ssm-border: #38414C; --ssm-fresh: #252F0D;
+    } }`;
+}
+
 const SCROLL_PRESETS = [3, 5, 10];
 const MAX_SCROLL_SECONDS = 180;
 const URL_POLL_MS = 500;
@@ -124,9 +139,9 @@ function createPageBanner() {
     node.dataset.ssmBanner = '1';
     node.style.cssText = 'grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 14px;'
         + ' flex-wrap: wrap; margin: 12px 0 20px; padding: 12px 16px; border-radius: 14px;'
-        + ' font: 600 14px/1.35 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; color: #1b1d21;';
+        + ' font: 600 14px/1.35 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; color: var(--ssm-text);';
     node.innerHTML = '<span></span><button type="button" style="border: none; border-radius: 10px; height: 34px; padding: 0 14px;'
-        + ' font: inherit; color: #fff; cursor: pointer;"></button>';
+        + ' font: inherit; color: #03080A; cursor: pointer;"></button>';
     let onClick = null;
     node.querySelector('button').addEventListener('click', event => {
         event.preventDefault();
@@ -144,12 +159,12 @@ function createPageBanner() {
             if (button.textContent !== action) {
                 button.textContent = action;
             }
-            const background = fresh ? '#fff6e0' : '#f5f6f8';
+            const background = fresh ? 'var(--ssm-fresh)' : 'var(--ssm-surface)';
             if (node.style.background !== background) {
                 node.style.background = background;
-                node.style.boxShadow = fresh ? 'inset 0 0 0 1px #ffb020' : 'none';
+                node.style.boxShadow = fresh ? `inset 0 0 0 1px ${BRAND_ACCENT}` : 'none';
             }
-            button.style.background = site.accent;
+            button.style.background = BRAND_ACCENT;
         }
     };
 }
@@ -372,8 +387,6 @@ function createOzon() {
                 root.appendChild(node);
             }
         },
-        accent: '#005bff',
-        accentSoft: '#e6efff',
         isListing: () => Boolean(paginator()) && resultGrids().length > 0,
         isSorted: () => Boolean(document.getElementById(ROOT_ID)),
         capture,
@@ -492,8 +505,6 @@ function createWildberries() {
         countWord: 'оценкам',
         countForms: ['оценка', 'оценки', 'оценок'],
         // Colours of the site as of 19.10.2026 (buttons rgb(167, 58, 253)).
-        accent: '#a73afd',
-        accentSoft: '#f4e7ff',
         // The strip sits between the sorted cards and the ones loaded after the sort.
         placeBanner(node) {
             const root = list();
@@ -738,14 +749,14 @@ function createOzonOffers() {
         }
         const few = readShort(shop.orders) < FEW_ORDERS;
         line.textContent = `Магазин: ${parts.join(' · ')}${few ? ' - мало заказов' : ''}`;
-        line.style.color = few ? '#b25e00' : '#5f6670';
+        line.style.color = few ? '#925600' : '#5f6670';
         line.dataset.ssmReviews = String(readShort(shop.reviews));
     }
 
     function setLabel(text, active = sorted) {
         button.querySelector('span').textContent = text;
-        button.style.background = active ? site.accent : '#fff';
-        button.style.color = active ? '#fff' : '#1b1d21';
+        button.style.background = active ? BRAND_ACCENT : 'var(--ssm-bg)';
+        button.style.color = active ? BRAND_INK : 'var(--ssm-text)';
     }
 
     function makeButton(switcher) {
@@ -912,8 +923,8 @@ function createOzonOffers() {
         link.target = '_blank';
         link.title = 'SuliMarket: Ozon не показал кнопку "Есть дешевле" на этой странице';
         link.style.cssText = 'display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px 16px;'
-            + ' border-radius: 16px; background: #f2f3f5; color: #1b1d21; text-decoration: none; font-size: 15px; line-height: 1.3;';
-        link.innerHTML = `<span style="color: ${site.accent}; display: grid;">${ICON_SORT}</span><span><span style="color: #5f6670;">Другие продавцы - ${counted(sellers.length, ['предложение', 'предложения', 'предложений'])}</span><br><b></b></span>`;
+            + ' border-radius: 16px; background: var(--ssm-surface); color: var(--ssm-text); text-decoration: none; font-size: 15px; line-height: 1.3;';
+        link.innerHTML = `<span style="color: ${BRAND_INK}; background: ${BRAND_ACCENT}; padding: 6px; border-radius: 8px; display: grid;">${ICON_SORT}</span><span><span style="color: var(--ssm-muted);">Другие продавцы - ${counted(sellers.length, ['предложение', 'предложения', 'предложений'])}</span><br><b></b></span>`;
         link.querySelector('b').textContent = price ? `от ${price}` : 'смотреть';
         priceBox.appendChild(link);
     }
@@ -992,7 +1003,7 @@ function createWbSellers() {
     const FETCH_PAUSE_MS = 200;
     const TAIL_ORDER = 100000;
     const MUTED = '#5f6670';
-    const WARN = '#b25e00';
+    const WARN = '#925600';
 
     const memo = new Map();
     const queue = [];
@@ -1250,10 +1261,14 @@ function createWbSellers() {
         return Array.from(document.querySelectorAll('button')).filter(node => SITE_SORT.includes(node.textContent.trim()));
     }
 
-    // The site's sort choices are words; ours is a word in the site's accent while it holds the order.
+    // Our seller-order action uses the same lime fill as the main extension controls.
     function setLabel(text, active = sorted) {
         button.querySelector('span').textContent = text;
-        button.style.color = active ? site.accent : '';
+        button.style.background = active ? BRAND_ACCENT : 'var(--ssm-surface)';
+        button.style.color = active ? BRAND_INK : 'var(--ssm-text)';
+        button.style.padding = '6px 12px';
+        button.style.borderRadius = '10px';
+        button.setAttribute('aria-pressed', String(active));
         button.style.fontWeight = active ? '600' : '';
     }
 
@@ -1391,6 +1406,12 @@ if (!site || document.documentElement.dataset.sulimarket) {
 }
 document.documentElement.dataset.sulimarket = VERSION;
 
+const themeStyle = document.createElement('style');
+themeStyle.id = 'sulimarket-theme';
+themeStyle.textContent = themeRules('[data-ssm-banner], [data-ssm-offers-sort], [data-ssm-sellers]');
+document.documentElement.appendChild(themeStyle);
+
+
 // ------------------------------------------------------------------ UI
 const ICON_SORT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 12h8M4 18h5"/><path d="M18 5v14M15 16l3 3 3-3"/></svg>';
 const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -1399,20 +1420,21 @@ const ICON_UNDO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" s
 const FAB_SIZE = 40;
 const EDGE_GAP = 12;
 const PANEL_WIDTH = 256;
-// Amber marks "new cards loaded below, not sorted yet": readable next to both site accents.
-const FRESH = '#ffb020';
-const FRESH_SOFT = '#fff6e0';
+// New-card status uses the brand fill; its words explain that sorting is still pending.
+const FRESH = BRAND_ACCENT;
+const FRESH_SOFT = 'var(--ssm-fresh)';
 const DEFAULT_OFFSET = { right: 24, bottom: 68 };
 
 // Look: board design/boards/widget/2026-10-19/approved/01-pristine-popover.png.
 const STYLE = `
     :host { all: initial; }
+    ${themeRules(':host')}
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; }
     button { font: inherit; }
     .fab {
         position: fixed; width: ${FAB_SIZE}px; height: ${FAB_SIZE}px; border-radius: 50%;
         border: none; padding: 0; cursor: grab; touch-action: none;
-        display: grid; place-items: center; color: #fff; background: var(--accent);
+        display: grid; place-items: center; color: ${BRAND_INK}; background: var(--accent);
         box-shadow: 0 4px 14px rgba(0, 0, 0, .18); transition: transform .15s ease, box-shadow .15s ease;
     }
     .fab svg { width: 18px; height: 18px; }
@@ -1422,71 +1444,72 @@ const STYLE = `
     .fab.fresh { box-shadow: 0 0 0 3px ${FRESH}, 0 4px 14px rgba(0, 0, 0, .18); }
     .fab .badge {
         position: absolute; top: -6px; right: -8px; min-width: 20px; height: 20px; padding: 0 5px;
-        border-radius: 10px; background: #fff; color: #5f6670; font-size: 11px; font-weight: 700; white-space: nowrap;
+        border-radius: 10px; background: var(--ssm-bg); color: var(--ssm-muted); font-size: 11px; font-weight: 700; white-space: nowrap;
         display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0, 0, 0, .22);
     }
     .fab .badge:empty { display: none; }
-    .fab.sorted .badge, .fab.busy .badge { color: var(--accent); }
-    .fab.fresh .badge { background: ${FRESH}; color: #1b1d21; }
+    .fab.sorted .badge, .fab.busy .badge { color: ${BRAND_INK}; background: var(--accent); }
+    .fab.fresh .badge { background: ${FRESH}; color: ${BRAND_INK}; }
     .fab svg.ring { position: absolute; inset: -5px; width: ${FAB_SIZE + 10}px; height: ${FAB_SIZE + 10}px; transform: rotate(-90deg); display: none; }
     .fab.busy svg.ring { display: block; }
     .ring circle { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; opacity: .25; }
     .ring circle.progress { opacity: 1; transition: stroke-dashoffset .28s linear; }
     .panel {
-        position: fixed; width: ${PANEL_WIDTH}px; padding: 12px; border-radius: 16px; background: #fff; color: #1b1d21;
+        position: fixed; width: ${PANEL_WIDTH}px; padding: 12px; border-radius: 16px; background: var(--ssm-bg); color: var(--ssm-text);
         box-shadow: 0 14px 40px rgba(16, 24, 40, .16), 0 0 0 1px rgba(16, 24, 40, .06);
         display: none; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.35; overflow-y: auto;
     }
     .panel.open { display: flex; }
     .panel > * { flex-shrink: 0; }
-    .caret { position: fixed; width: 10px; height: 10px; background: #fff; transform: rotate(45deg); display: none; }
+    .caret { position: fixed; width: 10px; height: 10px; background: var(--ssm-bg); transform: rotate(45deg); display: none; }
     .caret.open { display: block; }
     .caret.above { box-shadow: 1px 1px 0 rgba(16, 24, 40, .06); }
     .caret.below { box-shadow: -1px -1px 0 rgba(16, 24, 40, .06); }
     .head { display: flex; align-items: center; gap: 6px; }
     .title { font-weight: 800; font-size: 14px; letter-spacing: -.01em; }
-    .chip { padding: 2px 7px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; }
-    .ver { color: #9aa0a8; font-size: 11px; margin-left: auto; }
-    .icon-btn { border: none; background: transparent; color: #5f6670; cursor: pointer; padding: 2px; border-radius: 6px; display: grid; }
-    .icon-btn:hover { color: #1b1d21; background: #f2f3f5; }
-    .status { padding: 8px 10px; border-radius: 10px; background: #f5f6f8; }
+    .chip { padding: 2px 7px; border-radius: 999px; background: var(--accent); color: ${BRAND_INK}; font-size: 10px; font-weight: 700; }
+    .ver { color: var(--ssm-muted); font-size: 11px; margin-left: auto; }
+    .icon-btn { border: none; background: transparent; color: var(--ssm-muted); cursor: pointer; padding: 2px; border-radius: 6px; display: grid; }
+    .icon-btn:hover { color: var(--ssm-text); background: var(--ssm-surface); }
+    .status { padding: 8px 10px; border-radius: 10px; background: var(--ssm-surface); }
     .status.fresh { background: ${FRESH_SOFT}; box-shadow: inset 0 0 0 1px ${FRESH}; }
     .status-main { font-weight: 600; text-wrap: pretty; }
     .status-main b { font-weight: 800; }
-    .status-sub { color: #5f6670; font-size: 12px; margin-top: 1px; text-wrap: pretty; }
+    .status-sub { color: var(--ssm-muted); font-size: 12px; margin-top: 1px; text-wrap: pretty; }
     .primary {
-        border: none; border-radius: 10px; height: 36px; padding: 0 12px; background: var(--accent); color: #fff;
+        border: none; border-radius: 10px; height: 36px; padding: 0 12px; background: var(--accent); color: ${BRAND_INK};
         font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
     }
     .primary svg { width: 16px; height: 16px; }
     .primary:hover { filter: brightness(1.07); }
-    .label { color: #5f6670; font-size: 12px; margin-bottom: 6px; }
+    .label { color: var(--ssm-muted); font-size: 12px; margin-bottom: 6px; }
     .row { display: flex; gap: 6px; align-items: center; }
-    .seg { flex: 1; display: flex; height: 32px; padding: 2px; gap: 2px; border: 1px solid #e3e5e8; border-radius: 10px; background: #fff; }
+    .seg { flex: 1; display: flex; height: 32px; padding: 2px; gap: 2px; border: 1px solid var(--ssm-border); border-radius: 10px; background: var(--ssm-bg); }
     .preset, .custom {
-        flex: 1; border: none; border-radius: 8px; background: transparent; color: #1b1d21;
+        flex: 1; border: none; border-radius: 8px; background: transparent; color: var(--ssm-text);
         font-size: 12px; font-weight: 600; cursor: pointer; min-width: 0; white-space: nowrap;
     }
-    .preset:hover { background: #f2f3f5; }
-    .preset.active { background: var(--accent); color: #fff; }
+    .preset:hover { background: var(--ssm-surface); }
+    .preset.active { background: var(--accent); color: ${BRAND_INK}; }
     .custom { display: flex; align-items: center; justify-content: center; cursor: text; }
     .custom input { width: 100%; border: none; background: transparent; font: inherit; font-weight: 600; text-align: center; outline: none; color: inherit; -moz-appearance: textfield; }
     .custom input::-webkit-outer-spin-button, .custom input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .custom input::placeholder { color: #5f6670; }
-    .custom:focus-within { box-shadow: inset 0 0 0 1.5px var(--accent); }
-    .play { flex: none; width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--accent-soft); color: var(--accent); cursor: pointer; display: grid; place-items: center; }
+    .custom input::placeholder { color: var(--ssm-muted); }
+    .custom:focus-within { outline: 2px solid var(--ssm-text); outline-offset: 2px; }
+    .play { flex: none; width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--accent); color: ${BRAND_INK}; cursor: pointer; display: grid; place-items: center; }
     .play svg { width: 14px; height: 14px; }
-    .play:hover { background: var(--accent); color: #fff; }
+    .play:hover { background: var(--accent); color: ${BRAND_INK}; }
     .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .undo {
-        border: 1px solid #e3e5e8; border-radius: 8px; height: 28px; padding: 0 9px; background: #fff; color: #1b1d21;
+        border: 1px solid var(--ssm-border); border-radius: 8px; height: 28px; padding: 0 9px; background: var(--ssm-bg); color: var(--ssm-text);
         font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap;
     }
     .undo svg { width: 14px; height: 14px; }
-    .undo:hover:not(:disabled) { background: #f7f8fa; }
+    .undo:hover:not(:disabled) { background: var(--ssm-surface); }
     .undo:disabled { color: #b7bcc3; cursor: default; }
-    .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; color: #1b1d21; font-size: 12px; white-space: nowrap; }
-    .toggle input { display: none; }
+    .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--ssm-text); font-size: 12px; white-space: nowrap; }
+    .toggle input { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+    .toggle input:focus-visible + .switch { outline: 2px solid var(--ssm-text); outline-offset: 2px; }
     .switch { width: 30px; height: 18px; border-radius: 9px; background: #d5d8dd; position: relative; flex: none; transition: background .15s; }
     .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
     .toggle input:checked + .switch { background: var(--accent); }
@@ -1495,18 +1518,18 @@ const STYLE = `
     .panel.busy .busy-only { display: flex; }
     .panel.busy .idle-only { display: none; }
     .toast {
-        position: fixed; padding: 8px 12px; border-radius: 10px; background: #1b1d21; color: #fff; font-size: 12px;
+        position: fixed; padding: 8px 12px; border-radius: 10px; background: var(--ssm-text); color: var(--ssm-bg); font-size: 12px;
         opacity: 0; pointer-events: none; transition: opacity .2s; max-width: ${PANEL_WIDTH}px;
     }
-    .toast.show { opacity: .95; }
+    .toast.show { opacity: 1; }
     .pill {
         position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: none; align-items: center; gap: 12px;
-        padding: 6px 6px 6px 16px; border-radius: 999px; background: #fff; color: #1b1d21; font-size: 14px; font-weight: 600;
+        padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--ssm-bg); color: var(--ssm-text); font-size: 14px; font-weight: 600;
         white-space: nowrap; box-shadow: 0 0 0 2px ${FRESH}, 0 8px 24px rgba(0, 0, 0, .18);
     }
     .pill.show { display: flex; }
     .pill button {
-        height: 32px; padding: 0 14px; border: none; border-radius: 999px; background: var(--accent); color: #fff;
+        height: 32px; padding: 0 14px; border: none; border-radius: 999px; background: var(--accent); color: ${BRAND_INK};
         font-weight: 600; cursor: pointer;
     }
 `;
@@ -1553,8 +1576,8 @@ function createUi() {
         <div class="toast" role="status"></div>
         <div class="pill" role="status"><span class="pill-text"></span><button type="button">Досортировать</button></div>
     `;
-    host.style.setProperty('--accent', site.accent);
-    host.style.setProperty('--accent-soft', site.accentSoft);
+    host.style.setProperty('--accent', BRAND_ACCENT);
+    host.style.setProperty('--accent-soft', 'var(--ssm-fresh)');
     document.body.appendChild(host);
 
     const $ = selector => shadow.querySelector(selector);

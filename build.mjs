@@ -8,6 +8,7 @@ const core = readFileSync('src/core.js', 'utf8').replaceAll('__VERSION__', versi
 const indented = core.split('\n').map(line => (line ? `    ${line}` : line)).join('\n');
 
 const REPO = 'https://github.com/sergeysulimko/sulimarket';
+const HOMEPAGE = 'https://sulimko.com/sulimarket';
 const MATCHES = ['https://www.ozon.ru/*', 'https://www.wildberries.ru/*'];
 const DESCRIPTION = 'Сортирует Ozon и Wildberries по числу отзывов и оценок. Показывает, кто продаёт товар: оценку магазина, продажи и стаж.';
 
@@ -34,7 +35,7 @@ const header = [
     `// @version      ${version}`,
     `// @description  ${DESCRIPTION}`,
     '// @author       Sergey Sulimko',
-    `// @homepageURL  ${REPO}`,
+    `// @homepageURL  ${HOMEPAGE}`,
     `// @supportURL   ${REPO}/issues`,
     `// @updateURL    ${REPO}/releases/latest/download/sulimarket.user.js`,
     `// @downloadURL  ${REPO}/releases/latest/download/sulimarket.user.js`,
@@ -100,7 +101,7 @@ const manifest = {
     short_name: 'SuliMarket',
     version,
     description: DESCRIPTION,
-    homepage_url: REPO,
+    homepage_url: HOMEPAGE,
     icons: Object.fromEntries([16, 32, 48, 128].map(size => [size, `icons/icon-${size}.png`])),
     permissions: ['storage', 'activeTab'],
     action: { default_popup: 'popup.html', default_title: 'SuliMarket' },
