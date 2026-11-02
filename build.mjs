@@ -115,6 +115,9 @@ for (const file of ['popup.html', 'popup.css', 'popup.js']) {
     copyFileSync(`src/${file}`, `dist/extension/${file}`);
 }
 copyFileSync('assets/icon.svg', 'dist/extension/icon.svg');
+mkdirSync('dist/extension/fonts', { recursive: true });
+copyFileSync('assets/fonts/InterVariable.woff2', 'dist/extension/fonts/InterVariable.woff2');
+copyFileSync('assets/fonts/OFL-Inter.txt', 'dist/extension/fonts/OFL-Inter.txt');
 
 for (const size of [16, 32, 48, 128]) {
     // assets/icon-512.png is rendered from assets/icon.svg by a browser: ImageMagick's own SVG renderer drops strokes.

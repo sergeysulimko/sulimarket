@@ -1,0 +1,40 @@
+:root { color-scheme: light dark; --bg: #FCFCFE; --text: #03080A; --muted: #535B65; --line: #DDE0E5; --surface: #F0F1F4; --lime: #C8FF00; }
+@media (prefers-color-scheme: dark) { :root { --bg: #111418; --text: #F5F6F8; --muted: #B5BDC8; --line: #343C46; --surface: #1D2229; } }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { width: 360px; max-height: 600px; overflow-y: auto; margin: 0; padding: 22px; background: var(--bg); color: var(--text); font: 14px/1.45 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+header { display: flex; align-items: center; gap: 12px; }
+h1 { margin: 0; font-size: 22px; font-weight: 750; letter-spacing: -.035em; }
+#site { margin-left: auto; padding: 4px 10px; background: var(--surface); border-radius: 20px; font-size: 12px; }
+#status { margin: 20px 0; min-height: 41px; font-size: 16px; line-height: 1.45; }
+button, input { font: inherit; }
+button, .button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 42px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--text); text-decoration: none; font-weight: 650; cursor: pointer; }
+button:hover, .button:hover { border-color: var(--muted); }
+.primary { background: var(--lime); border-color: var(--lime); color: #03080A; }
+button:disabled { color: var(--muted); cursor: default; background: var(--surface); border-color: var(--line); }
+:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+fieldset { margin: 22px 0 18px; padding: 0 0 18px; border: 0; border-bottom: 1px solid var(--line); }
+legend { margin-bottom: 10px; padding: 0; color: var(--muted); }
+.load-row { display: flex; gap: 10px; }
+.segments { display: flex; flex: 1; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); }
+.segments button { flex: 1; min-width: 0; border: 0; border-radius: 24px; padding: 10px 6px; font-weight: 500; }
+.segments button[aria-pressed="true"] { background: var(--lime); color: #03080A; font-weight: 700; }
+#seconds { width: 64px; min-width: 0; border: 0; border-radius: 24px; padding: 8px; background: transparent; color: var(--text); text-align: center; appearance: textfield; }
+#seconds::-webkit-inner-spin-button { appearance: none; }
+#seconds::placeholder { color: var(--muted); }
+#play { flex: 0 0 44px; width: 44px; border-radius: 50%; border-color: var(--lime); background: var(--lime); color: #03080A; }
+.setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 62px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.setting input { appearance: none; flex: 0 0 38px; width: 38px; height: 23px; margin: 0; padding: 3px; border: 1px solid var(--muted); border-radius: 20px; background: var(--surface); cursor: pointer; }
+.setting input::before { content: ""; display: block; width: 15px; height: 15px; border-radius: 50%; background: var(--muted); }
+.setting input:checked { background: var(--lime); border-color: var(--lime); }
+.setting input:checked::before { background: #03080A; transform: translateX(15px); }
+#other .button + .button { margin-top: 10px; }
+ol { counter-reset: step; margin: 22px 0 0; padding: 16px 0; list-style: none; border-top: 1px solid var(--line); }
+li { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+li::before { counter-increment: step; content: counter(step); display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--surface); font-weight: 600; }
+footer { margin-top: 18px; border-top: 1px solid var(--line); }
+footer a { display: flex; align-items: center; justify-content: space-between; min-height: 40px; border-bottom: 1px solid var(--line); color: var(--text); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+footer a span { color: var(--muted); font-size: 22px; }
+small { display: block; padding-top: 12px; color: var(--muted); text-align: right; font-size: 11px; }
+#error { color: var(--text); padding: 12px; border: 1px solid var(--muted); border-radius: 8px; }

@@ -1,8 +1,12 @@
 const $ = selector => document.querySelector(selector);
 const number = value => value.toLocaleString('ru-RU');
 const plurals = new Intl.PluralRules('ru');
-function counted(value, forms) {
-    return `${number(value)} ${forms[plurals.select(value)] || forms.many}`;
+function word(value, forms) { return forms[plurals.select(value)] || forms.many; }
+function counted(value, forms) { return `${number(value)} ${word(value, forms)}`; }
+function strong(value) {
+    const node = document.createElement('strong');
+    node.textContent = number(value);
+    return node;
 }
 let tabId;
 let pendingCount = 0;
@@ -22,6 +26,13 @@ function render(state) {
             ? `Отсортировано ${counted(state.count, {one:'товар',few:'товара',many:'товаров'})}. Наверху ${counted(state.top, state.site === 'ozon' ? {one:'отзыв',few:'отзыва',many:'отзывов'} : {one:'оценка',few:'оценки',many:'оценок'})}.`
             : state.count ? `Загружено ${counted(state.count, {one:'товар',few:'товара',many:'товаров'})}. Сейчас порядок сайта.`
                 : 'Откройте поиск или категорию товаров в этом магазине.';
+    if (state.sorted && !state.busy) {
+        $('#status').replaceChildren(
+            'Отсортировано ', strong(state.count), ` ${word(state.count, {one:'товар',few:'товара',many:'товаров'})}.`,
+            document.createElement('br'), 'Наверху ', strong(state.top),
+            ` ${word(state.top, state.site === 'ozon' ? {one:'отзыв',few:'отзыва',many:'отзывов'} : {one:'оценка',few:'оценки',many:'оценок'})}.`
+        );
+    }
     $('#sort').hidden = state.busy;
     $('#sort').disabled = !state.count;
     $('#stop').hidden = !state.busy;
