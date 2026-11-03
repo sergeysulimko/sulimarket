@@ -4,7 +4,7 @@
 
 ## Магазины
 
-- [ ] Chrome Web Store.
+- [x] Chrome Web Store.
 - [ ] Edge Add-ons, Opera Add-ons - тот же пакет.
 - [ ] Firefox (addons.mozilla.org): своя сборка с `browser_specific_settings.gecko`.
 
@@ -17,3 +17,9 @@
 - [ ] Команда и MCP-сервер для агентов: "топ-N товаров по запросу X на Ozon/WB по числу отзывов".
 
 Идеи и ошибки - в [issues](https://github.com/sergeysulimko/sulimarket/issues/new/choose).
+
+## 3.5.0
+
+Lime light/dark themes and a native Chrome toolbar popup are implemented.
+Live Ozon/Wildberries sorting, restore, timed loading and preferences have been checked.
+The package and listing graphics are prepared for the next store release.

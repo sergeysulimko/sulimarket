@@ -1,5 +1,5 @@
 // One source, two products: `npm run build` writes the Tampermonkey script and the browser extension to dist/.
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -8,6 +8,7 @@ const core = readFileSync('src/core.js', 'utf8').replaceAll('__VERSION__', versi
 const indented = core.split('\n').map(line => (line ? `    ${line}` : line)).join('\n');
 
 const REPO = 'https://github.com/sergeysulimko/sulimarket';
+const HOMEPAGE = 'https://sulimko.com/sulimarket';
 const MATCHES = ['https://www.ozon.ru/*', 'https://www.wildberries.ru/*'];
 const DESCRIPTION = 'Сортирует Ozon и Wildberries по числу отзывов и оценок. Показывает, кто продаёт товар: оценку магазина, продажи и стаж.';
 
@@ -34,7 +35,7 @@ const header = [
     `// @version      ${version}`,
     `// @description  ${DESCRIPTION}`,
     '// @author       Sergey Sulimko',
-    `// @homepageURL  ${REPO}`,
+    `// @homepageURL  ${HOMEPAGE}`,
     `// @supportURL   ${REPO}/issues`,
     `// @updateURL    ${REPO}/releases/latest/download/sulimarket.user.js`,
     `// @downloadURL  ${REPO}/releases/latest/download/sulimarket.user.js`,
@@ -90,6 +91,7 @@ writeFileSync('dist/extension/content.js', `(async function () {
     };
 
 ${indented}
+${readFileSync('src/popup-bridge.js', 'utf8')}
 })();
 `);
 
@@ -99,15 +101,24 @@ const manifest = {
     short_name: 'SuliMarket',
     version,
     description: DESCRIPTION,
-    homepage_url: REPO,
+    homepage_url: HOMEPAGE,
     icons: Object.fromEntries([16, 32, 48, 128].map(size => [size, `icons/icon-${size}.png`])),
-    permissions: ['storage'],
+    permissions: ['storage', 'activeTab'],
+    action: { default_popup: 'popup.html', default_title: 'SuliMarket' },
     content_scripts: [{ matches: MATCHES, js: ['content.js'], run_at: 'document_idle' }]
 };
 if (manifest.description.length > 132) {
     throw new Error(`manifest description is ${manifest.description.length} chars, the store allows 132`);
 }
 writeFileSync('dist/extension/manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
+
+for (const file of ['popup.html', 'popup.css', 'popup.js']) {
+    copyFileSync(`src/${file}`, `dist/extension/${file}`);
+}
+copyFileSync('assets/icon.svg', 'dist/extension/icon.svg');
+mkdirSync('dist/extension/fonts', { recursive: true });
+copyFileSync('assets/fonts/InterVariable.woff2', 'dist/extension/fonts/InterVariable.woff2');
+copyFileSync('assets/fonts/OFL-Inter.txt', 'dist/extension/fonts/OFL-Inter.txt');
 
 for (const size of [16, 32, 48, 128]) {
     // assets/icon-512.png is rendered from assets/icon.svg by a browser: ImageMagick's own SVG renderer drops strokes.
