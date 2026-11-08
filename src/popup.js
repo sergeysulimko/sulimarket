@@ -8,6 +8,9 @@ function strong(value) {
     node.textContent = number(value);
     return node;
 }
+// Ask for a store rating once, after the third sort the user asked for; "asked" is saved the moment the ask shows.
+const RATE_AFTER_SORTS = 3;
+let rateShown = false;
 let tabId;
 let pendingCount = 0;
 let queue = Promise.resolve();
@@ -38,6 +41,11 @@ function render(state) {
     $('#stop').hidden = !state.busy;
     $('#loading').disabled = state.busy;
     $('#restore').disabled = !state.sorted || state.busy;
+    if (!rateShown && state.sorted && !state.busy && state.sortCount >= RATE_AFTER_SORTS && !state.rateAsked) {
+        rateShown = true;
+        send('rated');
+    }
+    $('#rate').hidden = !rateShown;
     $('#keep').checked = state.keepSorted;
     $('#show').checked = state.showButton;
     if (document.activeElement !== $('#seconds')) $('#seconds').value = state.customSeconds || '';
@@ -67,6 +75,8 @@ function send(command, extra = {}) {
     return queue;
 }
 
+$('#rate-go').addEventListener('click', () => { $('#rate').hidden = true; rateShown = false; });
+$('#rate-skip').addEventListener('click', () => { $('#rate').hidden = true; rateShown = false; });
 $('#sort').addEventListener('click', () => send('sort'));
 $('#stop').addEventListener('click', () => send('stop'));
 $('#restore').addEventListener('click', () => send('restore'));

@@ -19,3 +19,4 @@ footer{margin-top:0;border-top:1px solid var(--line)}footer a{display:flex;align
 @media(prefers-color-scheme:light){.brand-icon .icon-back{fill:#C8FF00;stroke:#C8FF00}.brand-icon g{fill:#03080A}.brand-icon path{stroke:#03080A}}
 
 body{font-optical-sizing:none;font-variation-settings:"opsz" 32}h1{font-weight:700;letter-spacing:-.02em}#status,legend,button,.button,.setting,li,footer a{letter-spacing:0}.primary{font-weight:650;border-radius:8px}.segments{border-radius:18px}.segments button{border-radius:17px;background:transparent}.segments button[aria-pressed="true"]{background:var(--lime)}.segments #seconds{border-radius:17px}.review-stars+.link-label{font-size:13px}
+#rate{margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:8px;display:grid;gap:8px}#rate p{margin:0;font-size:14px;line-height:1.4}

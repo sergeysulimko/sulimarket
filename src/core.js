@@ -1959,6 +1959,10 @@ const actions = {
         }
         sortingOn.set(true);
         publish('sorted', result);
+        if (!auto && !late) {
+            // Only the popup reads this (extension build): it asks for a store rating once, after a few sorts.
+            store.set('sortCount', store.get('sortCount', 0) + 1);
+        }
         actions.refresh();
         if (scroll) {
             const top = result.anchor.getBoundingClientRect().top + window.scrollY - 140;

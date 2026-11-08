@@ -73,3 +73,15 @@ test('popup status uses the current core result, without fabricated values', () 
     assert.equal(bridge.send('status').count, 20);
     assert.equal(bridge.send('unknown'), undefined);
 });
+
+test('the rating ask is saved as shown once the popup reports it, and the counter comes from the core store', () => {
+    const bridge = setup();
+    let state = bridge.send('status');
+    assert.equal(state.sortCount, 0); assert.equal(state.rateAsked, false);
+    bridge.values.sortCount = 3;
+    assert.equal(bridge.send('status').sortCount, 3);
+    state = bridge.send('rated');
+    assert.equal(bridge.values.rateAsked, true);
+    assert.equal(state.rateAsked, true);
+});
+

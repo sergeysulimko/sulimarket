@@ -10,7 +10,9 @@ function popupState() {
         keepSorted: ui.keepSorted(),
         showButton: store.get('showButton', true),
         lastSeconds: store.get('lastSeconds', 0),
-        customSeconds: store.get('customSeconds', '')
+        customSeconds: store.get('customSeconds', ''),
+        sortCount: store.get('sortCount', 0),
+        rateAsked: store.get('rateAsked', false)
     };
 }
 
@@ -18,6 +20,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     if (sender.id !== chrome.runtime.id || message?.channel !== 'sulimarket:popup') return;
     switch (message.command) {
         case 'status': break;
+        case 'rated': store.set('rateAsked', true); break;
         case 'sort': if (!scrollRun) actions.sort(); break;
         case 'stop': actions.stopScroll(); break;
         case 'restore': if (!scrollRun) actions.restore(); break;
