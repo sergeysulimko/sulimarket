@@ -10,7 +10,7 @@
 | Название (из manifest) | SuliMarket - сортировка Ozon и Wildberries по отзывам |
 | Краткое описание (из manifest, до 132 знаков) | Сортирует Ozon и Wildberries по числу отзывов и оценок. Показывает, кто продаёт товар: оценку магазина, продажи и стаж. |
 | Категория | Покупки (Shopping) |
-| Язык | Русский |
+| Язык | Русский (по умолчанию), English - см. "English listing" ниже |
 | Сайт | https://sulimko.com/sulimarket |
 | Поддержка | https://github.com/sergeysulimko/sulimarket/issues |
 | Политика конфиденциальности | https://sulimko.com/sulimarket/privacy |
@@ -65,6 +65,43 @@ SuliMarket работает только на www.ozon.ru и www.wildberries.ru.
 Ставится в Google Chrome, Яндекс Браузер, Microsoft Edge и Opera.
 
 Бесплатно, без рекламы, код открыт: github.com/sergeysulimko/sulimarket
+```
+
+## English listing (SUL-35)
+
+Name and short description come from the package (`_locales/en`, default language stays Russian). The long description is added in the store console, language "English", and must match the Russian one in meaning.
+
+| Field | Value |
+| --- | --- |
+| Name | SuliMarket - sort Ozon and Wildberries by reviews |
+| Short description | Sorts Ozon and Wildberries by number of reviews and ratings. Shows who sells the item: shop rating, sales and years on the site. |
+
+```
+Ozon and Wildberries (Russian marketplaces) do not sort products by the number of reviews. SuliMarket adds that sort: one click puts on top the products that thousands of people bought and rated, not cards with five stars from three buyers. Works in Chrome and Yandex Browser. The sites themselves are in Russian.
+
+Why not the rating
+A rating does not say how many people gave it: 5.0 from three buyers ranks above 4.8 from 40,000. SuliMarket puts products with more reviews on top (on Wildberries - ratings) and uses the rating to break ties. The number of reviews can be faked too, so read the reviews before you buy.
+
+Results
+- Sorts only the main search or category results.
+- Site cards stay as they are: same size, "Favorites", cart and product links work.
+- Scroll as usual: the site loads more products and new ones go under the sorted ones. "Sort the rest" puts them in place.
+- Load and sort: 3, 5, 10 seconds or your own number - SuliMarket scrolls the results and sorts everything loaded.
+- "As it was" returns the site order. "Keep" sorts new results after a filter, category or search change.
+
+Sellers
+- Ozon: each seller in "Other offers from sellers" gets a shop line - rating, reviews, orders and years on Ozon; a shop under 100 orders is marked. "By reviews" puts sellers with more reviews on top.
+- Wildberries: under every result card - the shop, its rating, sales and years on WB; the same on the product page and in "Seller offers".
+
+How to use
+1. Open a search or category on ozon.ru or wildberries.ru.
+2. Click the SuliMarket button in the Chrome toolbar or the round button in the lower right corner of the page.
+3. Click "Sort by reviews" or pick 3, 5 or 10 seconds to load more products first.
+
+Privacy
+SuliMarket runs only on www.ozon.ru and www.wildberries.ru. It collects and sends nothing: no server of its own, no analytics, no ads.
+
+Free, no ads, open source: github.com/sergeysulimko/sulimarket
 ```
 
 ## Изображения

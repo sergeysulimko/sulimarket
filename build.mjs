@@ -95,21 +95,43 @@ ${readFileSync('src/popup-bridge.js', 'utf8')}
 })();
 `);
 
+// Store listing in two languages (SUL-35: Google asks for English to nominate a Featured extension). Russian is the
+// default, so the Russian listing and every browser that is neither Russian nor English stay as they were; a browser
+// in English reads _locales/en. The long description and screenshots per language are set only in the store console
+// (store/chrome-web-store.md).
+const LOCALES = {
+    ru: {
+        extName: 'SuliMarket - сортировка Ozon и Wildberries по отзывам',
+        extDescription: DESCRIPTION,
+        extActionTitle: 'SuliMarket'
+    },
+    en: {
+        extName: 'SuliMarket - sort Ozon and Wildberries by reviews',
+        extDescription: 'Sorts Ozon and Wildberries by number of reviews and ratings. Shows who sells the item: shop rating, sales and years on the site.',
+        extActionTitle: 'SuliMarket'
+    }
+};
+for (const [locale, messages] of Object.entries(LOCALES)) {
+    if (messages.extName.length > 75) throw new Error(`${locale} extension name is ${messages.extName.length} chars, the store allows 75`);
+    if (messages.extDescription.length > 132) throw new Error(`${locale} description is ${messages.extDescription.length} chars, the store allows 132`);
+    mkdirSync(`dist/extension/_locales/${locale}`, { recursive: true });
+    writeFileSync(`dist/extension/_locales/${locale}/messages.json`, `${JSON.stringify(
+        Object.fromEntries(Object.entries(messages).map(([key, message]) => [key, { message }])), null, 2)}\n`);
+}
+
 const manifest = {
     manifest_version: 3,
-    name: 'SuliMarket - сортировка Ozon и Wildberries по отзывам',
+    name: '__MSG_extName__',
     short_name: 'SuliMarket',
+    default_locale: 'ru',
     version,
-    description: DESCRIPTION,
+    description: '__MSG_extDescription__',
     homepage_url: HOMEPAGE,
     icons: Object.fromEntries([16, 32, 48, 128].map(size => [size, `icons/icon-${size}.png`])),
     permissions: ['storage', 'activeTab'],
-    action: { default_popup: 'popup.html', default_title: 'SuliMarket' },
+    action: { default_popup: 'popup.html', default_title: '__MSG_extActionTitle__' },
     content_scripts: [{ matches: MATCHES, js: ['content.js'], run_at: 'document_idle' }]
 };
-if (manifest.description.length > 132) {
-    throw new Error(`manifest description is ${manifest.description.length} chars, the store allows 132`);
-}
 writeFileSync('dist/extension/manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
 
 for (const file of ['popup.html', 'popup.css', 'popup.js']) {
