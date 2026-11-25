@@ -8,6 +8,13 @@ SuliMarket sorts Ozon results by the number of reviews and Wildberries results b
 `src/core.js`, is built into a Tampermonkey userscript and a Manifest V3 extension. UI and docs are in Russian; code,
 comments and commits are in English.
 
+## Corp departments
+
+A task a corp department owns (page or store text, research, data, the look of a screen, social posts, accounts and
+access, analytics, publication) - before the first line read the map `~/Dev/corp/standards/WHO-OWNS-WHAT.md`: owner,
+door, law. An owner exists - do not build your own on top; the order carries everything needed (CORP-661). Sergey
+25.11.2026: "Это касается вообще совершенно всех проектов. Мы же идем к централизации работы через корп".
+
 ## Build and check
 
 - `npm run build` writes `dist/`: `sulimarket.user.js`, `ssmarket-bridge.user.js`, `extension/`, the store zip. The
