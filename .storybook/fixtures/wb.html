@@ -1,0 +1,59 @@
+<template id="listing">
+  <main class="fixture">
+    <h1>Наушники</h1>
+    <div class="product-card-list product-grid">
+      <article class="tile" data-nm-id="201">
+        <img class="photo" src="{{THUMBNAILS}}?card=/201/images/1" alt="">
+        <a href="/catalog/201/detail.aspx"><h2>Наушники с шумоподавлением</h2></a>
+        <b>4 890 ₽</b>
+        <div class="rating"><span>4.9</span> <span>2 842 оценки</span></div>
+      </article>
+      <article class="tile" data-nm-id="202">
+        <img class="photo" src="{{THUMBNAILS}}?card=/202/images/1" alt="">
+        <a href="/catalog/202/detail.aspx"><h2>Беспроводные наушники</h2></a>
+        <b>2 490 ₽</b>
+        <div class="rating"><span>4.7</span> <span>126 оценок</span></div>
+      </article>
+    </div>
+  </main>
+  <template id="late-card">
+    <article class="tile" data-nm-id="203">
+      <img class="photo" src="{{THUMBNAILS}}?card=/203/images/1" alt="">
+      <a href="/catalog/203/detail.aspx"><h2>Накладные наушники</h2></a>
+      <b>3 290 ₽</b>
+      <div class="rating"><span>4.8</span> <span>615 оценок</span></div>
+    </article>
+  </template>
+</template>
+<template id="product">
+  <main class="fixture offers">
+    <h1>Наушники с шумоподавлением</h1>
+    <p>4.9 · 2 842 оценки</p>
+    <article class="seller">
+      <div class="sellerInfoWrap"><a href="/seller/471">Аудиомаркет</a></div>
+    </article>
+  </main>
+</template>
+<template id="offers">
+  <main class="fixture offers">
+    <h1>Предложения продавцов</h1>
+    <ul class="site-orders">
+      <li><button class="site-sort selected"><span>Популярности</span></button></li>
+      <li><button class="site-sort"><span>Возрастанию цены</span></button></li>
+    </ul>
+    <ul class="seller-list">
+      <li class="seller" data-testid="seller-item">
+        <div class="seller-columns">
+          <a href="/seller/471"><div class="wrapper">Аудиомаркет</div></a>
+          <span class="description">308 оценок</span><b>4 890 ₽</b>
+        </div>
+      </li>
+      <li class="seller" data-testid="seller-item">
+        <div class="seller-columns">
+          <a href="/seller/472"><div class="wrapper">Технолавка</div></a>
+          <span class="description">19 оценок</span><b>4 770 ₽</b>
+        </div>
+      </li>
+    </ul>
+  </main>
+</template>
