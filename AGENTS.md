@@ -12,8 +12,7 @@ comments and commits are in English.
 
 A task a corp department owns (page or store text, research, data, the look of a screen, social posts, accounts and
 access, analytics, publication) - before the first line read the map `~/Dev/corp/standards/WHO-OWNS-WHAT.md`: owner,
-door, law. An owner exists - do not build your own on top; the order carries everything needed (CORP-661). Sergey
-25.11.2026: "Это касается вообще совершенно всех проектов. Мы же идем к централизации работы через корп".
+door, law. An owner exists - do not build your own on top; the order carries everything needed (CORP-661).
 
 ## Build and check
 
