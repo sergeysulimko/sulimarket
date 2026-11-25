@@ -5,6 +5,14 @@
   "description": "Сортировка выдачи Ozon и Wildberries по числу отзывов и оценок",
   "type": "module",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "design-live": "node --env-file-if-exists=.storybook/design-live.local.env scripts/design-live/publish.mjs",
+    "design-live:coverage": "node --env-file-if-exists=.storybook/design-live.local.env scripts/design-live/coverage.mjs"
+  },
+  "devDependencies": {
+    "@storybook/html-vite": "10.6.8",
+    "playwright": "1.65.1",
+    "storybook": "10.6.8",
+    "vite": "8.3.8"
   }
 }
