@@ -39,6 +39,20 @@ async function files(folder, relative = '') {
     return paths.sort();
 }
 
+async function storybookDigest(folder, paths) {
+    const contents = [];
+    for (const path of paths) {
+        let bytes = await readFile(join(folder, path));
+        if (path === 'project.json') {
+            // Storybook writes timestamps even when the build is otherwise identical.
+            const { generatedAt, userSince, ...project } = JSON.parse(bytes);
+            bytes = JSON.stringify(project);
+        }
+        contents.push(`${path} ${digest(bytes)}`);
+    }
+    return digest(contents.join('\n')).slice(0, 16);
+}
+
 async function atomicWrite(path, data) {
     await mkdir(dirname(path), { recursive: true });
     const temp = `${path}.${randomUUID()}.tmp`;
@@ -96,7 +110,9 @@ async function capture(page, host, id, theme) {
         const bottom = Math.min(innerHeight + 16, Math.ceil(Math.max(...boxes.map(box => box.bottom))) + 16);
         return { x, y, width: right - x, height: bottom - y };
     });
-    return page.screenshot({ clip: { ...clip, x: frame.x + clip.x, y: frame.y + clip.y }, scale: 'css' });
+    return page.screenshot({
+        clip: { ...clip, x: frame.x + clip.x, y: frame.y + clip.y }, scale: 'css', animations: 'disabled'
+    });
 }
 
 async function main() {
@@ -116,9 +132,16 @@ async function main() {
             return [source, { sha, date }];
         }));
         const buildPaths = await files(build);
-        const buildHashes = [];
-        for (const path of buildPaths) buildHashes.push(`${path} ${digest(await readFile(join(build, path)))}`);
-        const buildFolder = `storybook/${digest(buildHashes.join('\n')).slice(0, 16)}`;
+        const fingerprint = await storybookDigest(build, buildPaths);
+        let buildFolder = `storybook/${fingerprint}`;
+        if (previous.storybook) {
+            const previousFolder = dirname(previous.storybook);
+            const published = join(output, previousFolder);
+            if (await readIfPresent(join(published, 'index.html')) &&
+                await storybookDigest(published, await files(published)) === fingerprint) {
+                buildFolder = previousFolder;
+            }
+        }
         const assets = new Map(buildPaths.map(path => [join(buildFolder, path), join(build, path)]));
         const components = [];
         const playwright = await chromium.launch();
