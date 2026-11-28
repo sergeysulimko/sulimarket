@@ -1,4 +1,4 @@
-/* Generated from design-language/tokens.json; DO NOT EDIT. Version 1.41.0. Source SHA256 0d7ebfa062a2a9e7262c76cb2e111f7d6c4cede2e65bc076184da34942a72b3a. */
+/* Generated from design-language/tokens.json; DO NOT EDIT. Version 1.42.1. Source SHA256 8f95023870d57a679b8bcccb328ae5da697c0ed5a502d559bf31631a55eedc56. */
 // <ed-button> - behaviour of the language button (1.26.0, 27.11.2026). The look is button.css and works without
 // this script; the element adds only what CSS cannot: a <button> without a type does not submit its form, `busy`
 // and `disabled` stop activation (pointer, Enter and Space all arrive as click) and are announced, a link can be

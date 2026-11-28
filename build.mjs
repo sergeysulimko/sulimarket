@@ -137,6 +137,11 @@ writeFileSync('dist/extension/manifest.json', `${JSON.stringify(manifest, null, 
 for (const file of ['popup.html', 'popup.css', 'popup.js']) {
     copyFileSync(`src/${file}`, `dist/extension/${file}`);
 }
+// The popup loads the pinned language files from vendor/ (pin.json); they ship in the package as plain files.
+mkdirSync('dist/extension/vendor', { recursive: true });
+for (const file of ['energy-dots.css', 'primitives.css', 'focus.js', 'button.js']) {
+    copyFileSync(`vendor/energy-dots/${file}`, `dist/extension/vendor/${file}`);
+}
 copyFileSync('assets/icon.svg', 'dist/extension/icon.svg');
 mkdirSync('dist/extension/fonts', { recursive: true });
 copyFileSync('assets/fonts/InterVariable.woff2', 'dist/extension/fonts/InterVariable.woff2');

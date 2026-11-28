@@ -11,7 +11,7 @@
     "check:design": "energy-dots-check"
   },
   "devDependencies": {
-    "@energy-dots/rules": "file:./vendor/energy-dots-rules-1.41.0",
+    "@energy-dots/rules": "file:./vendor/energy-dots-rules-1.42.1",
     "@storybook/html-vite": "10.6.8",
     "playwright": "1.65.1",
     "storybook": "10.6.8",

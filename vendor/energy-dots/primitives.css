@@ -1,4 +1,4 @@
-/* Generated from design-language/tokens.json; DO NOT EDIT. Version 1.41.0. Source SHA256 0d7ebfa062a2a9e7262c76cb2e111f7d6c4cede2e65bc076184da34942a72b3a. */
+/* Generated from design-language/tokens.json; DO NOT EDIT. Version 1.42.1. Source SHA256 8f95023870d57a679b8bcccb328ae5da697c0ed5a502d559bf31631a55eedc56. */
 @layer ed.base, ed.theme, ed.components;
 @layer ed.components {
   /* Reading defaults shared by the site and portable primitives. The document supplies lang. */
@@ -8,9 +8,11 @@
      -webkit-font-smoothing: antialiased - it thins every stem against SkaiSoft (Sergey 26.11: "на свифте правильно"). */
   :where(body) { text-rendering: optimizeLegibility; }
   /* Every `font:` shorthand resets font-feature-settings to normal, so a body rule reached only body itself; important
-     keeps the features under any component shorthand. Figures use font-variant-numeric, not this property. */
+     keeps the features under any component shorthand. Figures use font-variant-numeric, not this property. A product
+     that owns another Inter set changes the numbers, never the rule: --font-inter-ss01 (open digits, default 0),
+     --font-inter-cv11, --font-inter-ss03. */
   :where(body, body *) {
-    font-feature-settings: "cv11" var(--font-inter-cv11), "ss03" var(--font-inter-ss03) !important;
+    font-feature-settings: "cv11" var(--font-inter-cv11), "ss01" var(--font-inter-ss01, 0), "ss03" var(--font-inter-ss03) !important;
   }
   :where([lang]) { --measure-script-cap: var(--measure-reading-chars); }
   :where(:lang(zh, ja)) { --measure-script-cap: var(--measure-reading-cjk-chars); }
@@ -892,6 +894,16 @@
     --ed-button-hover: var(--live-wash);
     --ed-button-pressed: var(--live-wash);
   }
+  /* Brand accent (1.42.0, opt-in): a product that owns a brand colour sets --brand and --brand-ink on its page and takes
+     its filled button, round action and switch from the language (SuliMarket's lime). Without --brand the variant is the
+     ink-filled primary, so nothing changes for a page that sets no brand. */
+  ed-button[variant="brand"] {
+    --ed-button-line: var(--brand, var(--ink));
+    --ed-button-fill: var(--brand, var(--ink));
+    --ed-button-ink: var(--brand-ink, var(--body));
+    --ed-button-hover: color-mix(in oklch, var(--brand, var(--ink)) 92%, var(--brand-ink, var(--body)));
+    --ed-button-pressed: color-mix(in oklch, var(--brand, var(--ink)) 84%, var(--brand-ink, var(--body)));
+  }
 
   ed-button > :is(button, a) {
     display: inline-flex;
@@ -925,6 +937,9 @@
     font: var(--text-label-14--font-weight) var(--text-label-14)/var(--text-label-14--line-height) var(--font-sans);
   }
   ed-button[size="icon"] > :is(button, a) { inline-size: var(--button-toolbar); min-block-size: var(--button-toolbar); padding-inline: 0; }
+  /* Round: a circular icon action (a play button next to a segmented group); the product sets the diameter with
+     --button-toolbar on the host. */
+  ed-button[shape="round"] > :is(button, a) { border-radius: 50%; }
   @media (pointer: coarse) {
     ed-button[size] > :is(button, a), ed-button > :is(button, a) {
       min-block-size: var(--target-touch);
@@ -1843,6 +1858,47 @@
   }
   .ed-check:has(input:disabled) { color: var(--disabled-ink); }
 
+  /* Switch (1.42.0): a native checkbox with role="switch". The track is 36 x 20 (border box) with a 2 inset; the on
+     state takes the product's --brand (ink without one) and a thumb of --ed-switch-thumb. A product that needs another
+     size sets --ed-switch-w and --ed-switch-h; the thumb and its travel follow. */
+  input.ed-switch {
+    --ed-switch-w: 36px;
+    --ed-switch-h: 20px;
+    --ed-switch-pad: var(--sp-0-5);
+    --ed-switch-thumb: var(--body);
+    appearance: none;
+    box-sizing: border-box;
+    flex: none;
+    inline-size: var(--ed-switch-w);
+    block-size: var(--ed-switch-h);
+    margin: 0;
+    padding: var(--ed-switch-pad);
+    border: var(--hairline) solid var(--line-strong);
+    border-radius: calc(var(--ed-switch-h) / 2 + 1px);
+    background: var(--pad-hover);
+    cursor: pointer;
+  }
+  input.ed-switch::before {
+    content: "";
+    display: block;
+    inline-size: calc(var(--ed-switch-h) - 2 * (var(--ed-switch-pad) + var(--hairline)));
+    block-size: calc(var(--ed-switch-h) - 2 * (var(--ed-switch-pad) + var(--hairline)));
+    border-radius: 50%;
+    background: var(--ed-switch-thumb);
+    box-shadow: var(--ed-switch-thumb-shadow, none);
+    transition: transform var(--t-fast);
+  }
+  input.ed-switch:checked { border-color: var(--brand, var(--ink)); background: var(--brand, var(--ink)); }
+  input.ed-switch:checked::before { transform: translateX(calc(var(--ed-switch-w) - var(--ed-switch-h))); }
+  input.ed-switch:disabled { border-color: var(--disabled-line); background: var(--disabled-fill); cursor: default; }
+  @media (prefers-reduced-motion: reduce) { input.ed-switch::before { transition: none; } }
+  @media (forced-colors: active) {
+    input.ed-switch { border-color: ButtonBorder; forced-color-adjust: none; background: Canvas; }
+    input.ed-switch::before { background: ButtonText; }
+    input.ed-switch:checked { background: Highlight; border-color: Highlight; }
+    input.ed-switch:checked::before { background: HighlightText; }
+  }
+
   .ed-segment,
   .ed-filter-rail {
     box-sizing: border-box;
@@ -1868,6 +1924,11 @@
     font: var(--text-copy-13--font-weight) var(--text-copy-13)/var(--text-copy-13--line-height) var(--font-sans);
   }
   .ed-segment > .ed-segment-option[aria-pressed="true"] { border-color: transparent; }
+  /* Brand accent (1.42.0, opt-in): the chosen chip takes the product's --brand fill; unchanged without the attribute. */
+  .ed-segment[data-accent="brand"] > .ed-segment-option[aria-pressed="true"] {
+    background: var(--brand, var(--pad-pressed));
+    color: var(--brand-ink, var(--ink));
+  }
   .ed-filter-rail { gap: var(--sp-2); }
   .ed-segment-option,
   .ed-filter-chip {

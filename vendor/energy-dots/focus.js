@@ -1,4 +1,4 @@
-/* Generated from design-language/tokens.json; DO NOT EDIT. Version 1.41.0. Source SHA256 0d7ebfa062a2a9e7262c76cb2e111f7d6c4cede2e65bc076184da34942a72b3a. */
+/* Generated from design-language/tokens.json; DO NOT EDIT. Version 1.42.1. Source SHA256 8f95023870d57a679b8bcccb328ae5da697c0ed5a502d559bf31631a55eedc56. */
 {
   const root = document.documentElement;
   const hiddenScrollRing = 'data-scroll-focus-hidden';

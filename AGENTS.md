@@ -25,12 +25,14 @@ door, law. An owner exists - do not build your own on top; the order carries eve
   more, "Ещё N товаров без сортировки" shows at the bottom), the Ozon sellers window ("Есть дешевле": shop lines,
   "По отзывам"), WB shop lines on result cards, under the seller on a product page and on "Предложения продавцов"
   (`/catalog/<id>/other-sellers`, "По отзывам").
-- Design language (code level): `vendor/energy-dots/` holds the pinned tokens and primitives (`pin.json`), not packed
-  into the extension. The popup look is the one Sergey accepted on boards 03/04/08 (lime accent and switches) and is
-  stronger than a primitive: do not restyle it onto the language without his word. `npm run check:design` runs the
-  shared presets on `popup.css`, `popup.js`, `popup.html`; what they flag in the accepted look is in
-  `energy-dots-baseline.json` (reason: accepted by Sergey 02.11.2026). Update both vendor folders from one sulimko-com
-  commit. `core.js` is outside the scope.
+- Design language (code level): `vendor/energy-dots/` holds the pinned tokens and primitives (`pin.json`) and ships in the
+  extension package under `vendor/`. The popup is built from them: `ed-button` (`variant="brand"`, `shape="round"`),
+  `.ed-segment[data-accent="brand"]`, `.ed-switch`, with the SuliMarket palette and brand (`--brand`, `--brand-ink`) set
+  in `popup.css`. The look is the one Sergey accepted on boards 03/04/08 (lime accent and switches) and is stronger
+  than a primitive: a change that moves a popup pixel needs his word. Check it by re-shooting the popup states and
+  diffing against the accepted frames (max diff 0). `npm run check:design` runs the shared presets on `popup.css`,
+  `popup.js`, `popup.html`; what they flag in the accepted look is in `energy-dots-baseline.json` (reason: accepted by
+  Sergey 02.11.2026). Update both vendor folders from one sulimko-com commit. `core.js` is outside the scope.
 - Release: bump `package.json`, add a `CHANGELOG.md` entry, `node build.mjs` (it stamps the version into README and
   the site page and fails without a CHANGELOG entry; `scripts/merge-gate.sh` stops /main if the stamp is not
   committed), /main, then `gh release create vX.Y.Z` from main with `dist/sulimarket.user.js`,

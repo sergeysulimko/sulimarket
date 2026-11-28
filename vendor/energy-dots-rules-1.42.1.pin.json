@@ -1,0 +1,7 @@
+{
+  "source": "sulimko-com/design-language/rules",
+  "commit": "2148bb4792faa53b4043e3a1526871672136f18b",
+  "version": "1.42.1",
+  "sourceHash": "8f95023870d57a679b8bcccb328ae5da697c0ed5a502d559bf31631a55eedc56",
+  "localChange": "markup.mjs line 3: an internal docs path removed from a comment (public repo)"
+}

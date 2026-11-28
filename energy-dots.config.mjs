@@ -8,8 +8,8 @@ const tokenFiles = ['vendor/energy-dots/energy-dots.css', 'vendor/energy-dots/pr
 const languageCss = tokenFiles.map(file => readFileSync(file, 'utf8')).join('\n');
 const fontSizeTokenNames = [...new Set(Array.from(languageCss.matchAll(/^\s+(--text-[\w]+(?:-[\w]+)*):/gm), match => match[1]))];
 
-// The popup keeps the look Sergey accepted on boards 03 (dark), 04 LimeLight (light) and 08 PopUp (lime accent, lime
-// switches, the boards' type sizes). Everything the shared rules flag there is recorded in energy-dots-baseline.json
+// The popup is built from the language's primitives and keeps the look Sergey accepted on boards 03 (dark), 04 LimeLight
+// (light) and 08 PopUp (lime accent, lime switches, the boards' type sizes). Everything the shared rules flag there is recorded in energy-dots-baseline.json
 // with one reason: accepted by Sergey 02.11.2026 (sulimko-com docs/products/sulimarket/COURSE.md). New findings still fail.
 export default {
   baseline: 'energy-dots-baseline.json',
@@ -21,7 +21,8 @@ export default {
   },
   stylelint: {
     files: ['src/popup.css'],
-    config: stylelintRules({ tokenFiles, fontSizeTokenNames }),
+    // --brand and --brand-ink are the product's brand slot that the language's brand variant reads.
+    config: stylelintRules({ tokenFiles, fontSizeTokenNames, tokenNames: ['--brand', '--brand-ink'] }),
   },
   markup: { files: ['src/popup.html'] },
 };
