@@ -4,6 +4,14 @@ import core from '../src/core.js?raw';
 import popup from '../src/popup.html?raw';
 import popupCss from '../src/popup.css?raw';
 import popupJs from '../src/popup.js?raw';
+import sortUi from '../src/sort-ui.js?raw';
+import brandCss from '../src/brand.css?raw';
+import marketUiCss from '../src/market.css?raw';
+import tokens from '../vendor/energy-dots/energy-dots.css?raw';
+import primitives from '../vendor/energy-dots/primitives.css?raw';
+import button from '../vendor/energy-dots/button.js?raw';
+import focus from '../vendor/energy-dots/focus.js?raw';
+import { marketStyles } from '../src/market-styles.mjs';
 import promo from '../assets/promo.html?raw';
 import social from '../assets/social.html?raw';
 import icon from '../assets/icon.svg?raw';
@@ -38,7 +46,8 @@ function sourceDocument(source) {
 
 function popupScene(setup) {
     const { body } = sourceDocument(popup);
-    return html(body, assets(popupCss), `(${mockChrome})(${JSON.stringify(setup)}, ${JSON.stringify(version)});\n${popupJs}`);
+    return html(body, assets([tokens, primitives, brandCss, popupCss].join('\n')),
+        `(${mockChrome})(${JSON.stringify(setup)}, ${JSON.stringify(version)});\n${sortUi}\n${popupJs}\n{ ${button} }\n${focus}`);
 }
 
 function assets(source) {
@@ -66,7 +75,7 @@ function localSession() {
     };
 }
 
-function marketSetup(setup, { ui, actions, placeLateCard, themeRules, brandAccent, brandInk }) {
+function marketSetup(setup, { ui, actions, beginBusy, placeLateCard }) {
     const host = document.querySelector('#sulimarket-ui');
     const fab = host.shadowRoot.querySelector('.fab');
     const panel = host.shadowRoot.querySelector('.panel');
@@ -80,12 +89,13 @@ function marketSetup(setup, { ui, actions, placeLateCard, themeRules, brandAccen
         if (setup.includes('fresh') || setup === 'pill') placeLateCard();
     }
     if (setup.startsWith('panel')) {
-        fab.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+        fab.click();
+        if (setup === 'panel-version') panel.querySelector('.panel-info').open = true;
     }
     if (setup.endsWith('busy') || setup === 'motion') {
         // The story starts partway through loading. Its stop action still produces a sorted fixture.
         ui.setBusy(4500, 10000);
-        actions.showBusy('Листаю, ещё <b>5 с</b>', 'Загружено 2 товара');
+        beginBusy();
         panel.querySelector('.stop').addEventListener('click', () => {
             ui.setBusy(null);
             actions.sort();
@@ -93,18 +103,16 @@ function marketSetup(setup, { ui, actions, placeLateCard, themeRules, brandAccen
     }
     if (setup === 'toast' || setup === 'toast-error') {
         const show = () => setup === 'toast-error'
-            ? ui.toast('Карточки не найдены - это не страница выдачи')
-            : ui.toast('Старый SSMarket ещё стоит в Tampermonkey - удалите его там');
+            ? ui.toast('Карточки не найдены. Откройте поиск или категорию товаров.', 'error')
+            : ui.toast('Откройте Tampermonkey и удалите старый скрипт SSMarket.', 'warning');
         show();
         fab.addEventListener('dblclick', show);
     }
     if (setup === 'tokens' || setup === 'motion') {
         const sheet = document.createElement('section');
+        sheet.dataset.ssmUi = '';
         sheet.dataset.suiteTokens = '';
         sheet.style.cssText = 'width:340px;margin:24px;padding:16px;border:1px solid var(--ssm-border);border-radius:12px;background:var(--ssm-bg);color:var(--ssm-text)';
-        const rules = document.createElement('style');
-        rules.textContent = themeRules('[data-suite-tokens]');
-        sheet.append(rules);
         document.body.prepend(sheet);
         const label = document.createElement('h2');
         label.style.cssText = 'margin:0 0 12px;font-size:17px';
@@ -112,9 +120,8 @@ function marketSetup(setup, { ui, actions, placeLateCard, themeRules, brandAccen
         sheet.append(label);
         if (setup === 'tokens') {
             const tokens = getComputedStyle(sheet);
-            for (const name of ['--ssm-bg', '--ssm-text', '--ssm-muted', '--ssm-surface', '--ssm-border', '--ssm-fresh', 'BRAND_ACCENT', 'BRAND_INK']) {
-                const value = ({ BRAND_ACCENT: brandAccent, BRAND_INK: brandInk })[name]
-                    ?? tokens.getPropertyValue(name).trim();
+            for (const name of ['--ssm-bg', '--ssm-text', '--ssm-muted', '--ssm-surface', '--ssm-border', '--ssm-fresh', '--brand', '--brand-ink']) {
+                const value = tokens.getPropertyValue(name).trim();
                 const row = document.createElement('p');
                 row.style.cssText = 'display:flex;align-items:center;gap:8px;margin:6px 0;font:13px monospace';
                 const swatch = document.createElement('span');
@@ -148,9 +155,17 @@ function marketScene(scene, setup) {
         }[setup]
     };
     const data = [url.href, initial, setup].map(value => JSON.stringify(value)).join(', ');
+    const styles = marketStyles(tokens, primitives, brandCss, marketUiCss, new URL(font, document.baseURI).href);
     const ready = `
         setTimeout(() => (${marketSetup})(setup, {
-            ui, actions, themeRules, brandAccent: BRAND_ACCENT, brandInk: BRAND_INK,
+            ui, actions,
+            beginBusy() {
+                scrollRun = { stop: false };
+                actions.showBusy('Догружаю товары, ещё 5 с', 'Загружено 2 товара');
+                document.querySelector('#sulimarket-ui').shadowRoot.querySelector('.stop').addEventListener('click', () => {
+                    scrollRun = null;
+                }, { once: true, capture: true });
+            },
             placeLateCard() {
                 lastSortAt -= LATE_CARDS_MS;
                 document.querySelector('${isWb ? '.product-card-list' : '.product-grid:not(#sulimarket-ozon-sorted .product-grid)'}')
@@ -164,6 +179,8 @@ function marketScene(scene, setup) {
         const fetch = (${mockSellerFetch})(setup);
         const sessionStorage = (${localSession})();
         const location = new URL(fixtureUrl);
+        const marketCss = ${JSON.stringify(styles)};
+        ${sortUi}
         ${core.replaceAll('__VERSION__', version)}
         ${ready}
     })(${data});`;
@@ -202,11 +219,11 @@ async function ready(frame, record, setup, state, theme) {
     if (setup.startsWith('offers-sort')) {
         await waitFor(sort, 'Seller sort button missing');
         sort().click();
-        const text = setup.endsWith('sorted') ? /^По отзывам: \d/ : /^(Загружаю|Смотрю)/;
+        const text = setup.endsWith('sorted') ? /^По (отзывам|оценкам): \d/ : /^Остановить/;
         await waitFor(() => text.test(sort().textContent), 'Seller sort state missing');
     }
     await waitFor(() => targets().some(node => node.getClientRects().length), 'Visible render target missing');
-    if (setup === 'offers' || setup === 'offers-error') {
+    if (setup === 'offers' || setup === 'offers-error' || record.slug === 'wb-tile-shop') {
         await waitFor(() => targets().every(node => !node.textContent.includes('загружаю')), 'Seller reply missing');
     }
     if (state === 'focus' || record.family === 'focus') {

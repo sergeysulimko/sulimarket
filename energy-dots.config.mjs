@@ -14,15 +14,13 @@ const fontSizeTokenNames = [...new Set(Array.from(languageCss.matchAll(/^\s+(--t
 export default {
   baseline: 'energy-dots-baseline.json',
   eslint: {
-    // core.js carries the in-page UI as CSS strings the CSS rules cannot see; it is outside this scope until its
-    // styles move to files.
-    files: ['src/popup.js', 'src/popup-bridge.js'],
+    files: ['src/popup.js', 'src/popup-bridge.js', 'src/sort-ui.js', 'src/core.js'],
     config: eslintRules(),
   },
   stylelint: {
-    files: ['src/popup.css'],
+    files: ['src/popup.css', 'src/brand.css', 'src/market.css'],
     // --brand and --brand-ink are the product's brand slot that the language's brand variant reads.
-    config: stylelintRules({ tokenFiles, fontSizeTokenNames, tokenNames: ['--brand', '--brand-ink'] }),
+    config: stylelintRules({ tokenFiles: [...tokenFiles, 'src/brand.css', 'src/market.css'], fontSizeTokenNames, tokenNames: ['--brand', '--brand-ink'] }),
   },
   markup: { files: ['src/popup.html'] },
 };

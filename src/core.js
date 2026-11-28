@@ -1,23 +1,6 @@
 // SuliMarket core: shared by the Tampermonkey script and the browser extension.
 // The build wraps it in a function and passes `store` - a synchronous key-value store of the host.
 const VERSION = '__VERSION__';
-const BRAND_ACCENT = '#C8FF00';
-const BRAND_INK = '#03080A';
-
-// Theme only our own nodes; marketplace markup and colors remain owned by the site.
-function themeRules(selector) {
-    return `${selector} {
-        --ssm-bg: #FCFCFE; --ssm-text: #111418; --ssm-muted: #535D6A;
-        --ssm-surface: #F0F2F5; --ssm-border: #D3D9E1; --ssm-fresh: #F4FAD9;
-    }
-    @media (prefers-color-scheme: dark) { ${selector} {
-        --ssm-bg: #101316; --ssm-text: #F3F5F8; --ssm-muted: #B9C2CF;
-        --ssm-surface: #1C2127; --ssm-border: #38414C; --ssm-fresh: #252F0D;
-    } }`;
-}
-
-const SCROLL_PRESETS = [3, 5, 10];
-const MAX_SCROLL_SECONDS = 180;
 const URL_POLL_MS = 500;
 const RESULTS_WAIT_MS = 12000;
 const RESULTS_QUIET_MS = 900;
@@ -128,7 +111,7 @@ function describeCard(node) {
         card.seller = {
             name: shop.ssmSeller,
             rating: Number(shop.ssmRating) || null,
-            sales: Number(shop.ssmSales) || 0,
+            sales: shop.ssmSales === '' ? null : Number(shop.ssmSales),
             since: shop.ssmSince || null
         };
     }
@@ -146,37 +129,22 @@ function wait(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function formatNumber(value) {
-    return value.toLocaleString('ru-RU');
+function makeButton(label, { variant, size, shape, icon, className = '' } = {}) {
+    return `<ed-button ${variant ? `variant="${variant}"` : ''} ${size ? `size="${size}"` : ''} ${shape ? `shape="${shape}"` : ''}><button type="button" class="${className}">${icon || ''}${label}</button></ed-button>`;
 }
 
-// forms: [1 товар, 2 товара, 5 товаров]
-function plural(count, forms) {
-    const mod10 = count % 10;
-    const mod100 = count % 100;
-    if (mod10 === 1 && mod100 !== 11) {
-        return forms[0];
-    }
-    return mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? forms[1] : forms[2];
-}
-
-const GOODS = ['товар', 'товара', 'товаров'];
-
-function counted(count, forms) {
-    return `${formatNumber(count)} ${plural(count, forms)}`;
-}
+const resortButton = () => makeButton('Досортировать', { variant: 'brand' });
 
 // A strip on the page itself (between sorted and fresh cards, or under the sorted list) with one action.
 function createPageBanner() {
     const node = document.createElement('div');
     node.dataset.ssmBanner = '1';
-    node.style.cssText = 'grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 14px;'
-        + ' flex-wrap: wrap; margin: 12px 0 20px; padding: 12px 16px; border-radius: 14px;'
-        + ' font: 600 14px/1.35 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; color: var(--ssm-text);';
-    node.innerHTML = '<span></span><button type="button" style="border: none; border-radius: 10px; height: 34px; padding: 0 14px;'
-        + ' font: inherit; color: #03080A; cursor: pointer;"></button>';
-    let onClick = null;
-    node.querySelector('button').addEventListener('click', event => {
+    node.dataset.ssmUi = '';
+    node.innerHTML = `<span></span>${resortButton()}`;
+    const label = node.firstElementChild;
+    const button = node.querySelector('button');
+    let onClick;
+    button.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
         onClick();
@@ -185,19 +153,126 @@ function createPageBanner() {
         node,
         set({ text, action, fresh, handler }) {
             onClick = handler;
-            const [label, button] = node.children;
-            if (label.textContent !== text) {
-                label.textContent = text;
+            if (label.textContent !== text) label.textContent = text;
+            if (button.textContent !== action) button.textContent = action;
+            node.toggleAttribute('data-fresh', fresh);
+        }
+    };
+}
+
+const SELLER_EMPTY = 'Нет данных о магазине';
+const SELLER_ERROR = 'Не удалось загрузить сведения. Обновите страницу.';
+const SELLER_LOADING = 'Магазин: загружаю данные';
+
+function makeShopLine(compact = false) {
+    const line = document.createElement('div');
+    line.dataset.ssmShop = '1';
+    line.toggleAttribute('data-compact', compact);
+    return line;
+}
+
+function shopSummary(line, { facts = [], warning = '', text }) {
+    const summary = text ? `Магазин: ${text}` : `Магазин: ${facts.join(' · ')}${warning ? ` · ${warning}` : ''}`;
+    line.dataset.tone = text === SELLER_ERROR ? 'error' : warning ? 'warning' : '';
+    if (line.textContent !== summary) line.textContent = summary;
+}
+
+let tooltipId = 0;
+let lastTooltip = -Infinity;
+function addTooltip(control, message) {
+    const tip = document.createElement('span');
+    tip.id = `sulimarket-tip-${++tooltipId}`;
+    tip.className = 'ssm-tooltip';
+    tip.dataset.ssmUi = '';
+    tip.popover = 'manual';
+    tip.setAttribute('role', 'tooltip');
+    tip.textContent = message;
+    control.setAttribute('aria-describedby', tip.id);
+    control.after(tip);
+    let pending;
+    function close() {
+        clearTimeout(pending);
+        if (tip.matches(':popover-open')) {
+            tip.hidePopover();
+            lastTooltip = performance.now();
+        }
+        document.removeEventListener('scroll', close, true);
+        document.removeEventListener('keydown', escape, true);
+    }
+    function escape(event) {
+        if (event.key === 'Escape') close();
+    }
+    function enter(event) {
+        if (event.pointerType === 'touch') return;
+        clearTimeout(pending);
+        if (tip.matches(':popover-open')) return;
+        document.addEventListener('scroll', close, { capture: true, passive: true });
+        document.addEventListener('keydown', escape, true);
+        pending = setTimeout(() => {
+            if (tip.isConnected) tip.showPopover({ source: control });
+            else close();
+        }, performance.now() - lastTooltip < 300 ? 0 : 700);
+    }
+    function leave(event) {
+        if (event.relatedTarget !== tip && event.relatedTarget !== control) close();
+    }
+    control.addEventListener('pointerenter', enter);
+    control.addEventListener('pointerleave', leave);
+    control.addEventListener('focus', enter);
+    control.addEventListener('blur', close);
+    control.addEventListener('click', close);
+    tip.addEventListener('pointerleave', leave);
+    tip.addEventListener('pointerenter', () => clearTimeout(pending));
+}
+
+function sellerSortControl(metric, sort) {
+    const holder = document.createElement('span');
+    holder.dataset.ssmUi = '';
+    holder.dataset.ssmOffers = '';
+    const title = `По ${metric}`;
+    holder.innerHTML = `${makeButton(`${ICON_SORT}<span>${title}</span>`, { size: 'main' })}<span data-ssm-offers-progress role="status"></span>`;
+    const button = holder.querySelector('button');
+    button.dataset.ssmOffersSort = '1';
+    let run = null;
+    function render(selected, count, progress, fresh = false) {
+        button.firstElementChild.setAttribute('aria-hidden', 'true');
+        button.setAttribute('aria-pressed', String(selected));
+        button.setAttribute('aria-busy', String(Boolean(progress)));
+        if (selected) button.parentElement.setAttribute('variant', 'brand');
+        else button.parentElement.removeAttribute('variant');
+        button.lastElementChild.textContent = progress ? 'Остановить' : fresh ? `Досортировать +${formatNumber(count)}` : count ? `${title}: ${formatNumber(count)}` : title;
+        holder.lastElementChild.textContent = progress || '';
+    }
+    button.addEventListener('click', async event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (run) {
+            run.stop();
+            return;
+        }
+        let stop;
+        const stopped = new Promise(resolve => { stop = resolve; });
+        const current = { stopped, stop, cancelled: false };
+        run = current;
+        try {
+            await sort(current);
+        } finally {
+            run = null;
+            if (current.cancelled || button.getAttribute('aria-busy') === 'true') render(false);
+        }
+    });
+    render(false);
+    addTooltip(button, `SuliMarket: сначала продавцы с большим числом ${metric === 'отзывам' ? 'отзывов' : 'оценок'}`);
+    return {
+        holder,
+        render,
+        working: () => Boolean(run),
+        cancel() {
+            if (run) {
+                run.cancelled = true;
+                run.stop();
             }
-            if (button.textContent !== action) {
-                button.textContent = action;
-            }
-            const background = fresh ? 'var(--ssm-fresh)' : 'var(--ssm-surface)';
-            if (node.style.background !== background) {
-                node.style.background = background;
-                node.style.boxShadow = fresh ? `inset 0 0 0 1px ${BRAND_ACCENT}` : 'none';
-            }
-            button.style.background = BRAND_ACCENT;
+            render(false);
         }
     };
 }
@@ -412,7 +487,7 @@ function createOzon() {
         id: 'ozon',
         name: 'Ozon',
         countWord: 'отзывам',
-        countForms: ['отзыв', 'отзыва', 'отзывов'],
+        countForms: REVIEWS,
         // The strip ends the sorted list; the site's own list with the fresh cards follows it.
         placeBanner(node) {
             const root = document.getElementById(ROOT_ID);
@@ -536,7 +611,7 @@ function createWildberries() {
         id: 'wb',
         name: 'WB',
         countWord: 'оценкам',
-        countForms: ['оценка', 'оценки', 'оценок'],
+        countForms: RATINGS,
         // Colours of the site as of 19.10.2026 (buttons rgb(167, 58, 253)).
         // The strip sits between the sorted cards and the ones loaded after the sort.
         placeBanner(node) {
@@ -643,14 +718,13 @@ function createOzonOffers() {
     const shops = new Map();
     const queue = [];
     let fetching = 0;
-    let button = null;
+    let control = null;
     let sorted = false;
-    let busy = null;
     let productSeen = { id: '', since: 0, asked: false };
     const rowsWatch = new MutationObserver(() => placeTail());
     // While "По отзывам" scrolls the window to load all sellers, rows only fly past and are not asked about.
     const visible = new IntersectionObserver(entries => entries.forEach(entry => {
-        if (entry.isIntersecting && !busy) {
+        if (entry.isIntersecting && !control?.working()) {
             visible.unobserve(entry.target);
             shopOf(entry.target);
         }
@@ -680,14 +754,6 @@ function createOzonOffers() {
         const number = parseFloat(text.replace(/[\s ]/g, '').replace(',', '.')) || 0;
         const unit = shortUnit(text);
         return unit ? Math.round(number * unit[0]) : number;
-    }
-
-    function shortText(text, forms) {
-        const unit = shortUnit(text);
-        if (unit) {
-            return `${text.replace(/\s*[KM]\s*$/i, '').trim()} ${unit[1]} ${forms[2]}`;
-        }
-        return counted(readShort(text), forms);
     }
 
     async function loadShop(id) {
@@ -754,10 +820,8 @@ function createOzonOffers() {
     function shopLine(row) {
         let line = row.querySelector('[data-ssm-shop]');
         if (!line) {
-            line = document.createElement('div');
-            line.dataset.ssmShop = '1';
-            line.style.cssText = 'margin-top: 6px; font-size: 13px; line-height: 1.35; color: #5f6670;';
-            line.textContent = 'Магазин: загружаю';
+            line = makeShopLine();
+            line.textContent = SELLER_LOADING;
             infoColumn(row).appendChild(line);
         }
         return line;
@@ -766,61 +830,26 @@ function createOzonOffers() {
     function drawShop(row, shop) {
         const line = shopLine(row);
         if (!shop) {
-            line.textContent = 'Магазин: Ozon не ответил';
+            shopSummary(line, { text: SELLER_ERROR });
             return;
         }
         const parts = [];
-        if (shop.rating) {
-            parts.push(`★ ${shop.rating}`);
-        }
-        if (shop.reviews) {
-            parts.push(shortText(shop.reviews, ['отзыв', 'отзыва', 'отзывов']));
-        }
-        parts.push(shop.orders ? shortText(shop.orders, ['заказ', 'заказа', 'заказов']) : 'нет заказов');
-        if (shop.age) {
-            parts.push(`${shop.age} на Ozon`);
-        }
-        const few = readShort(shop.orders) < FEW_ORDERS;
-        line.textContent = `Магазин: ${parts.join(' · ')}${few ? ' - мало заказов' : ''}`;
-        line.style.color = few ? '#925600' : '#5f6670';
+        if (shop.rating) parts.push(`Оценка ${shop.rating.replace('.', ',')}`);
+        if (shop.reviews) parts.push(compactCount(readShort(shop.reviews), REVIEWS));
+        if (shop.orders) parts.push(compactCount(readShort(shop.orders), ['заказ', 'заказа', 'заказов']));
+        if (shop.age) parts.push(`${shop.age} на Ozon`);
+        const warning = shop.orders && readShort(shop.orders) < FEW_ORDERS ? 'мало заказов' : '';
+        shopSummary(line, { facts: parts, warning, text: parts.length ? '' : SELLER_EMPTY });
         line.dataset.ssmReviews = String(readShort(shop.reviews));
     }
 
-    function setLabel(text, active = sorted) {
-        button.querySelector('span').textContent = text;
-        button.style.background = active ? BRAND_ACCENT : 'var(--ssm-bg)';
-        button.style.color = active ? BRAND_INK : 'var(--ssm-text)';
-    }
-
     function makeButton(switcher) {
-        button = document.createElement('button');
-        button.type = 'button';
-        button.dataset.ssmOffersSort = '1';
-        button.title = 'SuliMarket: продавцы с большим числом отзывов на этот товар - наверху';
-        button.style.cssText = 'display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px;'
-            + ' border: 1px solid #d6d9de; border-radius: 12px; font: inherit; font-weight: 600; cursor: pointer;';
-        button.innerHTML = `${ICON_SORT}<span></span>`;
-        button.querySelector('svg').setAttribute('width', '18');
-        button.querySelector('svg').setAttribute('height', '18');
-        setLabel('По отзывам');
-        button.addEventListener('click', event => {
-            event.preventDefault();
-            event.stopPropagation();
-            if (busy) {
-                busy.stop = true;
-                return;
-            }
-            sortRows();
-        });
-        switcher.style.display = 'flex';
-        switcher.style.alignItems = 'center';
-        switcher.style.gap = '12px';
-        switcher.appendChild(button);
+        control = sellerSortControl('отзывам', sortRows);
+        const { holder } = control;
+        switcher.appendChild(holder);
         // A site tab ("Быстрее доставка", "Ниже цена") gives the order back to the site.
         switcher.addEventListener('click', event => {
-            if (!button.contains(event.target)) {
-                unsort();
-            }
+            if (holder.isConnected && !holder.contains(event.target)) unsort();
         }, true);
     }
 
@@ -834,43 +863,35 @@ function createOzonOffers() {
     }
 
     // The site loads 20 sellers at a time while the window is scrolled; load them all, up to LOAD_ALL_MS.
-    async function loadAll(run) {
+    async function loadAll(run, source) {
         const box = scroller();
         const startedAt = Date.now();
         let count = rows().length;
         let grewAt = Date.now();
-        while (box && !run.stop && Date.now() - startedAt < LOAD_ALL_MS && Date.now() - grewAt < LOAD_STEP_MS) {
+        while (box?.isConnected && !run.cancelled && !run.stopping && Date.now() - startedAt < LOAD_ALL_MS && Date.now() - grewAt < LOAD_STEP_MS) {
             box.scrollTop = box.scrollHeight;
-            await wait(250);
+            await Promise.race([wait(250), run.stopped]);
             const next = rows().length;
             if (next !== count) {
                 count = next;
                 grewAt = Date.now();
-                setLabel(`Загружено ${count}`, true);
+                if (run.cancelled || run.stopping) return;
+                source.render(sorted, 0, `Загружено ${counted(count, ['продавец', 'продавца', 'продавцов'])}`);
             }
         }
     }
 
-    async function sortRows() {
-        const run = { stop: false };
-        busy = run;
-        setLabel('Загружаю продавцов', true);
-        await loadAll(run);
-        const all = rows();
-        setLabel('Смотрю магазины', true);
-        await Promise.race([
-            Promise.all(all.slice(0, STATS_FOR_SORT).map(shopOf)),
-            new Promise(resolve => {
-                const timer = setInterval(() => {
-                    if (run.stop) {
-                        clearInterval(timer);
-                        resolve();
-                    }
-                }, 200);
-            })
-        ]);
-        busy = null;
+    async function sortRows(run) {
+        const source = control;
         const box = rowsBox();
+        run.stopped.then(() => { run.stopping = true; });
+        source.render(sorted, 0, 'Загружаю продавцов');
+        await loadAll(run, source);
+        if (run.cancelled || !box?.isConnected || box !== rowsBox() || source !== control) return;
+        const all = rows();
+        source.render(sorted, 0, 'Смотрю магазины');
+        await Promise.race([Promise.all(all.slice(0, STATS_FOR_SORT).map(shopOf)), run.stopped]);
+        if (run.cancelled || !box.isConnected || box !== rowsBox() || source !== control) return;
         const items = all.map((row, index) => ({
             row,
             count: Number(row.dataset.ssmCount || 0),
@@ -887,7 +908,7 @@ function createOzonOffers() {
         placeTail();
         rowsWatch.disconnect();
         rowsWatch.observe(box, { childList: true });
-        setLabel(`По отзывам: ${all.length}`);
+        source.render(true, all.length);
         const view = scroller();
         if (view) {
             view.scrollTop = 0;
@@ -910,7 +931,7 @@ function createOzonOffers() {
             fresh += isRow ? 1 : 0;
         });
         if (fresh) {
-            setLabel(`Досортировать +${fresh}`);
+            control.render(true, fresh, '', true);
         }
     }
 
@@ -926,9 +947,7 @@ function createOzonOffers() {
                 delete child.dataset.ssmPlaced;
             });
         }
-        if (button) {
-            setLabel('По отзывам', false);
-        }
+        control?.cancel();
     }
 
     function productId() {
@@ -952,14 +971,14 @@ function createOzonOffers() {
         const price = sellers[0].price?.cardPrice?.price || sellers[0].price?.price || '';
         const link = document.createElement('a');
         link.dataset.ssmSellers = '1';
+        link.dataset.ssmUi = '';
         link.href = address;
         link.target = '_blank';
-        link.title = 'SuliMarket: Ozon не показал кнопку "Есть дешевле" на этой странице';
-        link.style.cssText = 'display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px 16px;'
-            + ' border-radius: 16px; background: var(--ssm-surface); color: var(--ssm-text); text-decoration: none; font-size: 15px; line-height: 1.3;';
-        link.innerHTML = `<span style="color: ${BRAND_INK}; background: ${BRAND_ACCENT}; padding: 6px; border-radius: 8px; display: grid;">${ICON_SORT}</span><span><span style="color: var(--ssm-muted);">Другие продавцы - ${counted(sellers.length, ['предложение', 'предложения', 'предложений'])}</span><br><b></b></span>`;
+        link.rel = 'noopener';
+        link.innerHTML = `<span class="ssm-seller-icon">${ICON_SORT}</span><span><span class="ssm-seller-caption">Другие продавцы - ${counted(sellers.length, ['предложение', 'предложения', 'предложений'])}</span><br><b></b></span>`;
         link.querySelector('b').textContent = price ? `от ${price}` : 'смотреть';
         priceBox.appendChild(link);
+        addTooltip(link, 'Ozon не показал кнопку "Есть дешевле" на этой странице');
     }
 
     function checkProductPage() {
@@ -986,14 +1005,16 @@ function createOzonOffers() {
             checkProductPage();
             const switcher = document.querySelector(SWITCHER);
             if (!switcher || !rowsBox()) {
-                if (button && !button.isConnected) {
-                    button = null;
+                if (control && !control.holder.isConnected) {
+                    control.cancel();
+                    control = null;
                     sorted = false;
                     rowsWatch.disconnect();
                 }
                 return;
             }
-            if (!button || !button.isConnected) {
+            if (!control || !control.holder.isConnected) {
+                control?.cancel();
                 sorted = false;
                 makeButton(switcher);
             }
@@ -1027,7 +1048,6 @@ function createWbSellers() {
     const FACTS_URL = 'https://suppliers-shipment-2.wildberries.ru/api/v1/suppliers/find_by_ids';
     const NAME_URL = 'https://static-basket-01.wbbasket.ru/vol0/data/supplier-by-id/';
     const FEW_SALES = 100;
-    const NAME_CHARS = 24;
     const FACTS_BATCH = 50;
     const FACTS_GATHER_MS = 600;
     const SORT_WAIT_MS = 6000;
@@ -1035,15 +1055,13 @@ function createWbSellers() {
     const FETCHES_AT_ONCE = 2;
     const FETCH_PAUSE_MS = 200;
     const TAIL_ORDER = 100000;
-    const MUTED = '#5f6670';
-    const WARN = '#925600';
 
     const memo = new Map();
     const queue = [];
     const asked = new Map();
     let fetching = 0;
     let gatherTimer = 0;
-    let button = null;
+    let control = null;
     let sorted = false;
     const rowsWatch = new MutationObserver(() => placeTail());
     const visible = new IntersectionObserver(entries => entries.forEach(entry => {
@@ -1127,7 +1145,7 @@ function createWbSellers() {
                     job.resolve(shop ? {
                         rating: shop.valuation || '',
                         ratings: shop.feedbacksCount || 0,
-                        sales: shop.saleItemQuantity || 0,
+                        sales: typeof shop.saleItemQuantity === 'number' ? shop.saleItemQuantity : null,
                         since: shop.registrationDate || ''
                     } : null);
                 });
@@ -1140,17 +1158,6 @@ function createWbSellers() {
             .then(info => info.trademark || info.supplierName || ''));
     }
 
-    // 2 600 000 -> "2,6 млн", 14 762 -> "15 тыс.", 984 -> "984".
-    function big(count, forms) {
-        if (count >= 1e6) {
-            return `${String(Math.round(count / 1e5) / 10).replace('.', ',')} млн ${forms[2]}`;
-        }
-        if (count >= 1e4) {
-            return `${Math.round(count / 1000)} тыс. ${forms[2]}`;
-        }
-        return counted(count, forms);
-    }
-
     function age(since) {
         const months = Math.floor((Date.now() - Date.parse(since)) / (30.44 * 24 * 3600 * 1000));
         if (!(months >= 1)) {
@@ -1160,66 +1167,80 @@ function createWbSellers() {
             : counted(Math.floor(months / 12), ['год', 'года', 'лет']);
     }
 
-    // parts: which facts the site does not show at this place already; "year" is the short start for narrow cards.
-    function describe(shop, parts) {
+    const SALES = ['продажа', 'продажи', 'продаж'];
+
+    function shopFacts(shop, { rating = false, ratings = false, year = false } = {}) {
         const out = [];
-        if (parts.includes('rating') && shop.rating) {
-            out.push(`★ ${String(shop.rating).replace('.', ',')}`);
-        }
-        if (parts.includes('ratings') && shop.ratings) {
-            out.push(big(shop.ratings, ['оценка', 'оценки', 'оценок']));
-        }
-        out.push(shop.sales ? big(shop.sales, ['продажа', 'продажи', 'продаж']) : 'нет продаж');
-        if (shop.since) {
-            out.push(parts.includes('year') ? `с ${shop.since.slice(0, 4)}` : `${age(shop.since)} на WB`);
-        }
-        return out.join(' · ');
+        if (rating && shop.rating) out.push(`Оценка ${String(shop.rating).replace('.', ',')}`);
+        if (ratings && shop.ratings) out.push(compactCount(shop.ratings, RATINGS));
+        if (shop.sales != null) out.push(compactCount(shop.sales, SALES));
+        if (shop.since) out.push(year ? `На WB с ${shop.since.slice(0, 4)} года` : `${age(shop.since)} на WB`);
+        return out;
     }
 
-    function makeLine(size) {
-        const line = document.createElement('div');
-        line.dataset.ssmShop = '1';
-        line.style.cssText = `font-size: ${size}px; line-height: 1.35; color: ${MUTED}; white-space: normal;`;
-        return line;
+    function warning(shop) {
+        return shop.sales != null && shop.sales < FEW_SALES ? 'мало продаж' : '';
     }
 
-    function fill(line, text, shop) {
-        const few = shop.sales < FEW_SALES;
-        line.textContent = `${text}${few ? ' - мало продаж' : ''}`;
-        line.style.color = few ? WARN : MUTED;
+    function fill(line, shop, options) {
+        if (!shop) {
+            shopSummary(line, { text: SELLER_EMPTY });
+            return;
+        }
+        const facts = shopFacts(shop, options);
+        shopSummary(line, { facts, warning: warning(shop), text: facts.length ? '' : SELLER_EMPTY });
     }
 
-    // ---- results: a line under the title of each card that comes into view
+    // Results use a native disclosure: the full name and every available fact can be read with a keyboard or touch.
+    function showTileShop(line, shop, name) {
+        fill(line, shop, { rating: true, year: true });
+        if (!shop || !name) return;
+        const details = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = `${name} · ${shopFacts(shop, { rating: true, year: true }).join(' · ')}`.replace(/ · $/, '');
+        const list = document.createElement('ul');
+        const facts = shopFacts(shop, { rating: true, ratings: true });
+        if (warning(shop)) facts.push(warning(shop));
+        for (const fact of facts) {
+            const item = document.createElement('li');
+            item.textContent = fact;
+            list.appendChild(item);
+        }
+        if (!facts.length) {
+            const item = document.createElement('li');
+            item.textContent = SELLER_EMPTY;
+            list.appendChild(item);
+        }
+        details.append(summary, list);
+        line.replaceChildren(details);
+    }
+
     async function tileShop(card) {
         const nm = card.dataset.nmId;
+        const title = card.querySelector(CARD_TITLE);
+        if (!title) return;
+        card.dataset.ssmShopDrawn = nm;
+        const line = card.querySelector('[data-ssm-shop]') || makeShopLine(true);
+        line.textContent = SELLER_LOADING;
+        line.dataset.tone = '';
+        for (const key of ['ssmSeller', 'ssmRating', 'ssmSales', 'ssmSince']) delete line.dataset[key];
+        const titleLink = title.closest('a');
+        const anchor = titleLink && card.contains(titleLink) ? titleLink : title;
+        if (!line.isConnected) anchor.after(line);
         try {
             const id = await sellerOfCard(card);
-            if (!id) {
-                return;
-            }
-            const [shop, name] = await Promise.all([facts(String(id)), shopName(id).catch(() => '')]);
-            const title = card.querySelector(CARD_TITLE);
-            if (!shop || !title || card.dataset.nmId !== nm) {
-                return;
-            }
-            const line = card.querySelector('[data-ssm-shop]') || makeLine(12);
-            line.style.marginTop = '4px';
-            const shortName = name.length > NAME_CHARS ? `${name.slice(0, NAME_CHARS - 1).trim()}...` : name;
-            fill(line, `${shortName || 'Продавец'} · ${describe(shop, ['rating', 'year'])}`, shop);
-            line.title = `Продавец ${name}: ${describe(shop, ['rating', 'ratings'])}`;
-            // The same facts for #sulimarket-result (describeCard).
+            const [shop, name] = id ? await Promise.all([facts(String(id)), shopName(id).catch(() => '')]) : [null, ''];
+            if (card.dataset.nmId !== nm) return;
+            showTileShop(line, shop, name);
+            if (!shop) return;
             Object.assign(line.dataset, {
                 ssmSeller: name || String(id),
                 ssmRating: String(shop.rating || ''),
-                ssmSales: String(shop.sales || 0),
+                ssmSales: shop.sales == null ? '' : String(shop.sales),
                 ssmSince: shop.since || ''
             });
-            if (!line.isConnected) {
-                title.after(line);
-            }
-            card.dataset.ssmShopDrawn = nm;
         } catch {
-            // The card stays as the site drew it.
+            if (card.dataset.nmId === nm) shopSummary(line, { text: SELLER_ERROR });
         }
     }
 
@@ -1255,15 +1276,14 @@ function createWbSellers() {
         if (old?.dataset.ssmShop) {
             old.remove();
         }
+        const line = makeShopLine();
+        line.textContent = SELLER_LOADING;
+        anchor.after(line);
         facts(id).then(shop => {
-            if (!shop || box.dataset.ssmSeller !== id) {
-                return;
-            }
-            const line = makeLine(13);
-            line.style.marginTop = '4px';
-            fill(line, `Магазин: ${describe(shop, ['ratings'])}`, shop);
-            anchor.after(line);
-        }, () => {});
+            if (box.dataset.ssmSeller === id) fill(line, shop, { ratings: true });
+        }, () => {
+            if (box.dataset.ssmSeller === id) shopSummary(line, { text: SELLER_ERROR });
+        });
     }
 
     // ---- "Предложения продавцов": a line on each row and the order of ratings
@@ -1277,79 +1297,57 @@ function createWbSellers() {
 
     function rowShop(row) {
         const id = rowSeller(row);
-        if (!id) {
-            return Promise.resolve(null);
+        if (!id) return Promise.resolve(null);
+        const link = row.querySelector(SELLER_LINK);
+        const column = link.querySelector('[class*="wrapper"]') || link;
+        const old = row.querySelector('[data-ssm-shop]');
+        const line = old || makeShopLine();
+        if (!old) {
+            line.textContent = SELLER_LOADING;
+            column.appendChild(line);
         }
         return facts(id).then(shop => {
-            if (shop) {
-                row.dataset.ssmRatings = String(shop.ratings);
-                // Under the seller's name and marks, inside the seller's own column.
-                const link = row.querySelector(SELLER_LINK);
-                const column = link.querySelector('[class*="wrapper"]') || link;
-                const line = row.querySelector('[data-ssm-shop]') || makeLine(13);
-                line.style.margin = '2px 0 0';
-                fill(line, describe(shop, []), shop);
-                if (!line.isConnected) {
-                    column.appendChild(line);
-                }
+            if (rowSeller(row) === id) {
+                row.dataset.ssmRatings = String(shop?.ratings ?? 0);
+                fill(line, shop);
             }
             return shop;
-        }, () => null);
+        }, () => {
+            if (rowSeller(row) === id) shopSummary(line, { text: SELLER_ERROR });
+            return null;
+        });
     }
 
     function siteSortButtons() {
         return Array.from(document.querySelectorAll('button')).filter(node => SITE_SORT.includes(node.textContent.trim()));
     }
 
-    // Our seller-order action uses the same lime fill as the main extension controls.
-    function setLabel(text, active = sorted) {
-        button.querySelector('span').textContent = text;
-        button.style.background = active ? BRAND_ACCENT : 'var(--ssm-surface)';
-        button.style.color = active ? BRAND_INK : 'var(--ssm-text)';
-        button.style.padding = '6px 12px';
-        button.style.borderRadius = '10px';
-        button.setAttribute('aria-pressed', String(active));
-        button.style.fontWeight = active ? '600' : '';
-    }
-
     function makeButton(siteButton) {
         const item = siteButton.closest('li') || siteButton;
-        const holder = item.cloneNode(false);
-        button = document.createElement('button');
-        button.type = 'button';
-        button.dataset.ssmOffersSort = '1';
-        button.className = siteButton.className.split(/\s+/).filter(name => !name.startsWith('selected')).join(' ');
-        button.innerHTML = '<span></span>';
-        button.firstChild.className = siteButton.querySelector('span')?.className || '';
-        button.title = 'SuliMarket: продавцы с большим числом оценок на этот товар - наверху';
-        button.addEventListener('click', event => {
-            event.preventDefault();
-            event.stopPropagation();
-            sortRows();
-        });
-        setLabel('По отзывам', false);
-        if (holder === siteButton) {
-            item.after(button);
+        const list = item.parentElement;
+        control = sellerSortControl('оценкам', sortRows);
+        const { holder } = control;
+        if (item === siteButton) {
+            item.after(holder);
         } else {
-            holder.appendChild(button);
-            item.parentElement.appendChild(holder);
+            const entry = document.createElement('li');
+            entry.dataset.ssmOffersItem = '';
+            entry.append(holder);
+            list.append(entry);
         }
-        // A site order ("Популярности", "Возрастанию цены") gives the order back to the site.
-        item.parentElement.addEventListener('click', event => {
-            if (!button.contains(event.target)) {
-                unsort();
-            }
+        list.addEventListener('click', event => {
+            if (holder.isConnected && !holder.contains(event.target)) unsort();
         }, true);
     }
 
-    async function sortRows() {
+    async function sortRows(run) {
         const all = rows();
-        if (!all.length) {
-            return;
-        }
-        setLabel('Смотрю магазины', true);
-        await Promise.race([Promise.all(all.map(rowShop)), wait(SORT_WAIT_MS)]);
+        if (!all.length) return;
+        const source = control;
         const box = all[0].parentElement;
+        source.render(sorted, 0, 'Смотрю магазины');
+        await Promise.race([Promise.all(all.map(rowShop)), wait(SORT_WAIT_MS), run.stopped]);
+        if (run.cancelled || !box.isConnected || source !== control) return;
         const items = all.map((row, index) => ({
             row,
             count: readCount(row.querySelector(OFFER_TEXT) || row, 'оцен'),
@@ -1366,7 +1364,7 @@ function createWbSellers() {
         placeTail();
         rowsWatch.disconnect();
         rowsWatch.observe(box, { childList: true });
-        setLabel(`По отзывам: ${all.length}`);
+        source.render(true, all.length);
     }
 
     // Rows loaded after the sort go under the sorted ones.
@@ -1383,7 +1381,7 @@ function createWbSellers() {
             }
         });
         if (fresh) {
-            setLabel(`Досортировать +${fresh}`);
+            control.render(true, fresh, '', true);
         }
     }
 
@@ -1399,22 +1397,24 @@ function createWbSellers() {
                 delete child.dataset.ssmPlaced;
             });
         }
-        if (button) {
-            setLabel('По отзывам', false);
-        }
+        control?.cancel();
     }
 
     function checkOffersPage() {
         if (!OFFERS_PAGE.test(location.pathname)) {
-            if (button) {
-                button = null;
+            if (control) {
+                control.cancel();
+                control.holder.closest('[data-ssm-offers-item]')?.remove();
+                control.holder.remove();
+                control = null;
                 sorted = false;
                 rowsWatch.disconnect();
             }
             return;
         }
         const siteButton = siteSortButtons()[0];
-        if (siteButton && (!button || !button.isConnected)) {
+        if (siteButton && (!control || !control.holder.isConnected)) {
+            control?.cancel();
             sorted = false;
             makeButton(siteButton);
         }
@@ -1448,131 +1448,16 @@ document.documentElement.dataset.sulimarket = VERSION;
 
 const themeStyle = document.createElement('style');
 themeStyle.id = 'sulimarket-theme';
-themeStyle.textContent = themeRules('[data-ssm-banner], [data-ssm-offers-sort], [data-ssm-sellers]');
+themeStyle.textContent = marketCss.page;
 document.documentElement.appendChild(themeStyle);
 
-
 // ------------------------------------------------------------------ UI
-const ICON_SORT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 12h8M4 18h5"/><path d="M18 5v14M15 16l3 3 3-3"/></svg>';
-const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-const ICON_PLAY = '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
-const ICON_UNDO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/></svg>';
-const FAB_SIZE = 40;
-const EDGE_GAP = 12;
-const PANEL_WIDTH = 256;
-// New-card status uses the brand fill; its words explain that sorting is still pending.
-const FRESH = BRAND_ACCENT;
-const FRESH_SOFT = 'var(--ssm-fresh)';
+const ICON_SORT = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h8M4 18h5"/><path d="M18 5v14M15 16l3 3 3-3"/></svg>';
+const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const ICON_PLAY = '<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M5 2.5v13L15 9Z" fill="currentColor"/></svg>';
+const ICON_UNDO = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 8v4l3 2"/></svg>';
 const DEFAULT_OFFSET = { right: 24, bottom: 68 };
-
-// Look: board design/boards/widget/2026-10-19/approved/01-pristine-popover.png.
-const STYLE = `
-    :host { all: initial; }
-    ${themeRules(':host')}
-    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; }
-    button { font: inherit; }
-    .fab {
-        position: fixed; width: ${FAB_SIZE}px; height: ${FAB_SIZE}px; border-radius: 50%;
-        border: none; padding: 0; cursor: grab; touch-action: none;
-        display: grid; place-items: center; color: ${BRAND_INK}; background: var(--accent);
-        box-shadow: 0 4px 14px rgba(0, 0, 0, .18); transition: transform .15s ease, box-shadow .15s ease;
-    }
-    .fab svg { width: 18px; height: 18px; }
-    .fab:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(0, 0, 0, .22); }
-    .fab:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
-    .fab.dragging { cursor: grabbing; transform: scale(1.06); transition: none; }
-    .fab.fresh { box-shadow: 0 0 0 3px ${FRESH}, 0 4px 14px rgba(0, 0, 0, .18); }
-    .fab .badge {
-        position: absolute; top: -6px; right: -8px; min-width: 20px; height: 20px; padding: 0 5px;
-        border-radius: 10px; background: var(--ssm-bg); color: var(--ssm-muted); font-size: 11px; font-weight: 700; white-space: nowrap;
-        display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0, 0, 0, .22);
-    }
-    .fab .badge:empty { display: none; }
-    .fab.sorted .badge, .fab.busy .badge { color: ${BRAND_INK}; background: var(--accent); }
-    .fab.fresh .badge { background: ${FRESH}; color: ${BRAND_INK}; }
-    .fab svg.ring { position: absolute; inset: -5px; width: ${FAB_SIZE + 10}px; height: ${FAB_SIZE + 10}px; transform: rotate(-90deg); display: none; }
-    .fab.busy svg.ring { display: block; }
-    .ring circle { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; opacity: .25; }
-    .ring circle.progress { opacity: 1; transition: stroke-dashoffset .28s linear; }
-    .panel {
-        position: fixed; width: ${PANEL_WIDTH}px; padding: 12px; border-radius: 16px; background: var(--ssm-bg); color: var(--ssm-text);
-        box-shadow: 0 14px 40px rgba(16, 24, 40, .16), 0 0 0 1px rgba(16, 24, 40, .06);
-        display: none; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.35; overflow-y: auto;
-    }
-    .panel.open { display: flex; }
-    .panel > * { flex-shrink: 0; }
-    .caret { position: fixed; width: 10px; height: 10px; background: var(--ssm-bg); transform: rotate(45deg); display: none; }
-    .caret.open { display: block; }
-    .caret.above { box-shadow: 1px 1px 0 rgba(16, 24, 40, .06); }
-    .caret.below { box-shadow: -1px -1px 0 rgba(16, 24, 40, .06); }
-    .head { display: flex; align-items: center; gap: 6px; }
-    .title { font-weight: 800; font-size: 14px; letter-spacing: -.01em; }
-    .chip { padding: 2px 7px; border-radius: 999px; background: var(--accent); color: ${BRAND_INK}; font-size: 10px; font-weight: 700; }
-    .ver { color: var(--ssm-muted); font-size: 11px; margin-left: auto; }
-    .icon-btn { border: none; background: transparent; color: var(--ssm-muted); cursor: pointer; padding: 2px; border-radius: 6px; display: grid; }
-    .icon-btn:hover { color: var(--ssm-text); background: var(--ssm-surface); }
-    .status { padding: 8px 10px; border-radius: 10px; background: var(--ssm-surface); }
-    .status.fresh { background: ${FRESH_SOFT}; box-shadow: inset 0 0 0 1px ${FRESH}; }
-    .status-main { font-weight: 600; text-wrap: pretty; }
-    .status-main b { font-weight: 800; }
-    .status-sub { color: var(--ssm-muted); font-size: 12px; margin-top: 1px; text-wrap: pretty; }
-    .primary {
-        border: none; border-radius: 10px; height: 36px; padding: 0 12px; background: var(--accent); color: ${BRAND_INK};
-        font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
-    }
-    .primary svg { width: 16px; height: 16px; }
-    .primary:hover { filter: brightness(1.07); }
-    .label { color: var(--ssm-muted); font-size: 12px; margin-bottom: 6px; }
-    .row { display: flex; gap: 6px; align-items: center; }
-    .seg { flex: 1; display: flex; height: 32px; padding: 2px; gap: 2px; border: 1px solid var(--ssm-border); border-radius: 10px; background: var(--ssm-bg); }
-    .preset, .custom {
-        flex: 1; border: none; border-radius: 8px; background: transparent; color: var(--ssm-text);
-        font-size: 12px; font-weight: 600; cursor: pointer; min-width: 0; white-space: nowrap;
-    }
-    .preset:hover { background: var(--ssm-surface); }
-    .preset.active { background: var(--accent); color: ${BRAND_INK}; }
-    .custom { display: flex; align-items: center; justify-content: center; cursor: text; }
-    .custom input { width: 100%; border: none; background: transparent; font: inherit; font-weight: 600; text-align: center; outline: none; color: inherit; -moz-appearance: textfield; }
-    .custom input::-webkit-outer-spin-button, .custom input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    .custom input::placeholder { color: var(--ssm-muted); }
-    .custom:focus-within { outline: 2px solid var(--ssm-text); outline-offset: 2px; }
-    .play { flex: none; width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--accent); color: ${BRAND_INK}; cursor: pointer; display: grid; place-items: center; }
-    .play svg { width: 14px; height: 14px; }
-    .play:hover { background: var(--accent); color: ${BRAND_INK}; }
-    .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .undo {
-        border: 1px solid var(--ssm-border); border-radius: 8px; height: 28px; padding: 0 9px; background: var(--ssm-bg); color: var(--ssm-text);
-        font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; white-space: nowrap;
-    }
-    .undo svg { width: 14px; height: 14px; }
-    .undo:hover:not(:disabled) { background: var(--ssm-surface); }
-    .undo:disabled { color: #b7bcc3; cursor: default; }
-    .toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; color: var(--ssm-text); font-size: 12px; white-space: nowrap; }
-    .toggle input { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
-    .toggle input:focus-visible + .switch { outline: 2px solid var(--ssm-text); outline-offset: 2px; }
-    .switch { width: 30px; height: 18px; border-radius: 9px; background: #d5d8dd; position: relative; flex: none; transition: background .15s; }
-    .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
-    .toggle input:checked + .switch { background: var(--accent); }
-    .toggle input:checked + .switch::after { transform: translateX(12px); }
-    .busy-only { display: none; }
-    .panel.busy .busy-only { display: flex; }
-    .panel.busy .idle-only { display: none; }
-    .toast {
-        position: fixed; padding: 8px 12px; border-radius: 10px; background: var(--ssm-text); color: var(--ssm-bg); font-size: 12px;
-        opacity: 0; pointer-events: none; transition: opacity .2s; max-width: ${PANEL_WIDTH}px;
-    }
-    .toast.show { opacity: 1; }
-    .pill {
-        position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: none; align-items: center; gap: 12px;
-        padding: 6px 6px 6px 16px; border-radius: 999px; background: var(--ssm-bg); color: var(--ssm-text); font-size: 14px; font-weight: 600;
-        white-space: nowrap; box-shadow: 0 0 0 2px ${FRESH}, 0 8px 24px rgba(0, 0, 0, .18);
-    }
-    .pill.show { display: flex; }
-    .pill button {
-        height: 32px; padding: 0 14px; border: none; border-radius: 999px; background: var(--accent); color: ${BRAND_INK};
-        font-weight: 600; cursor: pointer;
-    }
-`;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 function createUi() {
     const host = document.createElement('div');
@@ -1580,81 +1465,124 @@ function createUi() {
     host.style.cssText = 'position: fixed; z-index: 2147483000; top: 0; left: 0; width: 0; height: 0;';
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = `
-        <style>${STYLE}</style>
-        <button class="fab" type="button" aria-label="SuliMarket: сортировка" aria-expanded="false" title="SuliMarket - сортировка по ${site.countWord}. Кнопку можно перетащить">
+        <style>${marketCss.shadow}</style>
+        <div class="edge-probe" hidden></div>
+        <button class="fab" type="button" aria-label="SuliMarket: сортировка" aria-expanded="false" aria-controls="sulimarket-panel">
             ${ICON_SORT}
-            <svg class="ring" viewBox="0 0 54 54"><circle cx="27" cy="27" r="25"/><circle class="progress" cx="27" cy="27" r="25"/></svg>
-            <span class="badge"></span>
+            <svg class="ring" viewBox="0 0 54 54" aria-hidden="true"><circle cx="27" cy="27" r="25"/><circle class="progress" cx="27" cy="27" r="25"/></svg>
+            <span class="badge" aria-hidden="true"></span>
         </button>
-        <div class="panel" role="dialog" aria-label="SuliMarket">
+        <div id="sulimarket-panel" class="panel" role="dialog" aria-label="SuliMarket" inert>
             <div class="head">
                 <span class="title">SuliMarket</span><span class="chip">${site.name}</span>
-                <span class="ver">v${VERSION}</span>
-                <button class="icon-btn close" type="button" aria-label="Закрыть">${ICON_CLOSE}</button>
+                <span class="close-host">${makeButton(ICON_CLOSE, { variant: 'ghost', size: 'icon', className: 'close' })}</span>
             </div>
             <div class="status" role="status"><div class="status-main"></div><div class="status-sub"></div></div>
-            <button class="primary idle-only sort" type="button">${ICON_SORT}<span class="sort-label"></span></button>
-            <button class="primary busy-only stop" type="button">Хватит, сортировать</button>
-            <div class="idle-only">
-                <div class="label">Догрузить и отсортировать</div>
-                <div class="row">
-                    <div class="seg">
-                        ${SCROLL_PRESETS.map(seconds => `<button class="preset" type="button" data-seconds="${seconds}">${seconds} с</button>`).join('')}
-                        <label class="custom" title="Своё число секунд, Enter - старт">
-                            <input type="number" min="1" max="${MAX_SCROLL_SECONDS}" placeholder="N с" aria-label="Секунд листать">
-                        </label>
+            ${makeButton(`${ICON_SORT}<span class="sort-label"></span>`, { variant: 'brand', size: 'main', className: 'sort' })}
+            ${makeButton('Хватит, сортировать', { variant: 'brand', size: 'main', className: 'stop' })}
+            <fieldset class="load-settings">
+                <legend>Догрузить и отсортировать</legend>
+                <div class="load-controls">
+                    <div class="seg ed-segment" role="group" aria-label="Время догрузки" data-accent="brand">
+                        ${SCROLL_PRESETS.map(seconds => `<button class="preset ed-segment-option" type="button" data-seconds="${seconds}" aria-pressed="false">${seconds} с</button>`).join('')}
                     </div>
-                    <button class="play" type="button" aria-label="Листать своё число секунд и сортировать">${ICON_PLAY}</button>
+                    <label class="custom"><span class="time-label">Секунды</span>
+                        <input class="ed-field" type="number" min="1" max="${MAX_SCROLL_SECONDS}" step="1" aria-describedby="sulimarket-seconds-error" inputmode="numeric">
+                    </label>
+                    <span class="play-host">${makeButton(ICON_PLAY, { variant: 'brand', size: 'icon', shape: 'round', className: 'play' })}</span>
                 </div>
+                <p id="sulimarket-seconds-error" class="field-error" role="alert" hidden></p>
+            </fieldset>
+            <div class="foot">
+                ${makeButton(`${ICON_UNDO}<span>Как было</span>`, { className: 'undo' })}
+                <label class="toggle ed-check"><input type="checkbox" class="keep ed-switch" role="switch" aria-label="Держать сортировку" aria-describedby="sulimarket-setting-note"><span>Держать</span></label>
             </div>
-            <div class="foot idle-only">
-                <button class="undo" type="button" title="Вернуть порядок сайта">${ICON_UNDO}<span>Как было</span></button>
-                <label class="toggle" title="Сортировать снова после смены фильтра, категории, поиска и при возврате назад"><input type="checkbox" class="keep"><span class="switch"></span><span>Держать</span></label>
-            </div>
+            <div id="sulimarket-setting-note" class="setting-note">Применяется сразу</div>
+            <details class="panel-info"><summary>О расширении</summary><span class="ver">v${VERSION}</span></details>
         </div>
-        <div class="caret"></div>
-        <div class="toast" role="status"></div>
-        <div class="pill" role="status"><span class="pill-text"></span><button type="button">Досортировать</button></div>
+        <div class="caret" aria-hidden="true"></div>
+        <div class="bottom-fade" hidden></div>
+        <div class="toast" inert><span class="toast-text"></span>
+            ${makeButton(ICON_CLOSE, { variant: 'ghost', size: 'icon', className: 'toast-close' })}
+        </div>
+        <div class="pill" inert><span class="pill-text" role="status"></span>${resortButton()}</div>
     `;
-    host.style.setProperty('--accent', BRAND_ACCENT);
-    host.style.setProperty('--accent-soft', 'var(--ssm-fresh)');
-    document.body.appendChild(host);
-
+    const spacer = document.createElement('div');
+    spacer.dataset.ssmBottomSpacer = '';
+    spacer.setAttribute('aria-hidden', 'true');
+    document.body.append(host, spacer);
     const $ = selector => shadow.querySelector(selector);
     const fab = $('.fab');
     const panel = $('.panel');
-    const status = $('.status');
-    const statusMain = $('.status-main');
-    const statusSub = $('.status-sub');
-    const sortLabel = $('.sort-label');
-    const badge = $('.badge');
+    const sort = $('.sort');
+    const stop = $('.stop');
+    const undo = $('.undo');
+    const close = $('.close');
     const toastNode = $('.toast');
+    const toastText = $('.toast-text');
+    const toastClose = $('.toast-close');
     const caret = $('.caret');
     const customInput = $('.custom input');
+    const play = $('.play');
     const keepInput = $('.keep');
+    const settings = $('.load-settings');
     const progress = $('.ring .progress');
     const pill = $('.pill');
-    const pillText = $('.pill-text');
     const ringLength = 2 * Math.PI * 25;
     let busy = false;
+    let badgeText = '';
+    let currentLabel = '';
+    let freshCount = 0;
+    let stripOnScreen = false;
+    let strip;
+    let toastTimer;
+    stop.hidden = true;
+    close.setAttribute('aria-label', 'Закрыть');
+    play.setAttribute('aria-label', 'Догрузить заданное число секунд и отсортировать');
+    toastClose.setAttribute('aria-label', 'Закрыть сообщение');
+    addTooltip(fab, `Сортировка по ${site.countWord}. Кнопку можно перетащить`);
     progress.style.strokeDasharray = String(ringLength);
 
     const positionKey = `position:${site.id}`;
-    // Until the button is dragged it sits above the sites' own "to top" button in the bottom-right corner.
     let position = store.get(positionKey, null);
-    let toastTimer = 0;
 
-    function fabBox() {
-        const maxX = document.documentElement.clientWidth - FAB_SIZE - EDGE_GAP * 2;
-        const maxY = window.innerHeight - FAB_SIZE - EDGE_GAP * 2;
-        if (!position) {
-            return { x: EDGE_GAP + maxX - DEFAULT_OFFSET.right, y: EDGE_GAP + maxY - DEFAULT_OFFSET.bottom };
-        }
-        return { x: EDGE_GAP + position.fx * maxX, y: EDGE_GAP + position.fy * maxY };
+    function bounds() {
+        const style = getComputedStyle($('.edge-probe'));
+        const size = fab.offsetWidth || (matchMedia('(pointer: coarse)').matches ? 44 : 40);
+        const left = parseFloat(style.paddingLeft);
+        const top = parseFloat(style.paddingTop);
+        const right = parseFloat(style.paddingRight);
+        const bottom = parseFloat(style.paddingBottom);
+        const width = document.documentElement.clientWidth;
+        const height = window.innerHeight;
+        return { left, top, right, bottom, size, width, height,
+            maxX: Math.max(0, width - left - right - size), maxY: Math.max(0, height - top - bottom - size) };
     }
 
-    function onRightHalf() {
-        return fabBox().x + FAB_SIZE / 2 > document.documentElement.clientWidth / 2;
+    function fabBox(windowBox = bounds()) {
+        const { left, top, maxX, maxY } = windowBox;
+        const x = position ? position.fx * maxX : maxX - DEFAULT_OFFSET.right;
+        const y = position ? position.fy * maxY : maxY - DEFAULT_OFFSET.bottom;
+        return { x: left + Math.max(0, x), y: top + Math.max(0, y) };
+    }
+
+    function placePanel(windowBox = bounds()) {
+        if (!panel.classList.contains('open')) return;
+        const { left, top, right, bottom, size, width, height } = windowBox;
+        const { x, y } = fabBox(windowBox);
+        const panelWidth = panel.offsetWidth;
+        const wanted = x > width / 2 ? x + size - panelWidth : x;
+        panel.style.left = `${Math.max(left, Math.min(wanted, width - panelWidth - right))}px`;
+        const gap = 6;
+        const above = y - gap - top;
+        const below = height - y - size - gap - bottom;
+        caret.classList.toggle('above', above >= below);
+        caret.classList.toggle('below', below > above);
+        caret.style.left = `${x + size / 2 - 4}px`;
+        caret.style.top = `${above >= below ? y - gap - 4 : y + size + gap - 4}px`;
+        panel.style.maxHeight = `${Math.max(above, below)}px`;
+        panel.style.bottom = above >= below ? `${height - y + gap}px` : '';
+        panel.style.top = above >= below ? '' : `${y + size + gap}px`;
     }
 
     function placeFab() {
@@ -1664,221 +1592,218 @@ function createUi() {
         placePanel();
     }
 
-    // The panel opens towards the larger free side of the screen, wherever the button sits.
-    function placePanel() {
-        const { x, y } = fabBox();
-        const wanted = onRightHalf() ? x + FAB_SIZE - PANEL_WIDTH : x;
-        const left = Math.max(EDGE_GAP, Math.min(wanted, document.documentElement.clientWidth - PANEL_WIDTH - EDGE_GAP));
-        panel.style.left = `${left}px`;
-        // Open towards the larger measured space; a short screen scrolls the panel instead of cutting it.
-        const spaceAbove = y - 10 - EDGE_GAP;
-        const spaceBelow = window.innerHeight - (y + FAB_SIZE + 10) - EDGE_GAP;
-        const above = spaceAbove >= spaceBelow;
-        caret.classList.toggle('above', above);
-        caret.classList.toggle('below', !above);
-        caret.style.left = `${x + FAB_SIZE / 2 - 6}px`;
-        caret.style.top = `${above ? y - 16 : y + FAB_SIZE + 4}px`;
-        panel.style.maxHeight = `${Math.max(spaceAbove, spaceBelow)}px`;
-        if (above) {
-            panel.style.top = '';
-            panel.style.bottom = `${window.innerHeight - y + 10}px`;
-        } else {
-            panel.style.bottom = '';
-            panel.style.top = `${y + FAB_SIZE + 10}px`;
-        }
-        // The toast goes to the far edge of the open panel, or next to the button when it is closed.
-        toastNode.style.left = `${left}px`;
+    function syncBottom() {
         const open = panel.classList.contains('open');
-        const panelHeight = open ? panel.offsetHeight : 0;
-        const toastTop = above ? y - 10 - panelHeight - 48 : y + FAB_SIZE + 10 + panelHeight + 8;
-        toastNode.style.top = `${Math.max(EDGE_GAP, Math.min(toastTop, window.innerHeight - 48))}px`;
+        if (strip) {
+            if (open && document.activeElement === strip.querySelector('button')) close.focus({ preventScroll: true });
+            strip.toggleAttribute('inert', open);
+            strip.style.visibility = open ? 'hidden' : '';
+        }
+        const hasToast = toastNode.classList.contains('show');
+        const showPill = freshCount > 0 && !open && !stripOnScreen;
+        pill.classList.toggle('show', showPill);
+        pill.inert = !showPill;
+        $('.bottom-fade').hidden = !showPill;
+        const pillClearance = showPill ? pill.offsetHeight + 8 : 0;
+        toastNode.style.setProperty('--ssm-pill-clearance', `${pillClearance}px`);
+        const reservedHeight = (hasToast ? toastNode.offsetHeight : 0) + pillClearance;
+        spacer.style.height = reservedHeight ? `${Math.ceil(reservedHeight + bounds().bottom)}px` : '0';
     }
 
-    function setOpen(open) {
+    function setOpen(open, restore = false) {
+        if (panel.classList.contains('open') === open) return;
         panel.classList.toggle('open', open);
+        panel.inert = !open;
         caret.classList.toggle('open', open);
         fab.setAttribute('aria-expanded', String(open));
         if (open) {
             placePanel();
             actions.refresh();
+            close.focus({ preventScroll: true });
+        } else if (restore) {
+            fab.focus({ preventScroll: true });
         }
+        updateBadge();
+        syncBottom();
     }
 
-    let drag = null;
+    let drag;
+    let ignoreClick = false;
     fab.addEventListener('pointerdown', event => {
-        if (event.button !== 0) {
-            return;
-        }
+        if (event.button !== 0) return;
+        ignoreClick = false;
         drag = { startX: event.clientX, startY: event.clientY, origin: fabBox(), moved: false };
         fab.setPointerCapture(event.pointerId);
     });
-    const endDrag = () => {
+    function endDrag() {
+        if (drag?.moved) store.set(positionKey, position);
         drag = null;
         fab.classList.remove('dragging');
-    };
+    }
     fab.addEventListener('pointercancel', endDrag);
-    fab.addEventListener('lostpointercapture', () => {
-        if (drag?.moved) {
-            store.set(positionKey, position);
-        }
-        endDrag();
-    });
+    fab.addEventListener('lostpointercapture', endDrag);
     fab.addEventListener('pointermove', event => {
-        if (!drag || !event.buttons) {
-            return;
-        }
+        if (!drag || !event.buttons) return;
         const dx = event.clientX - drag.startX;
         const dy = event.clientY - drag.startY;
-        if (!drag.moved && Math.hypot(dx, dy) < 5) {
-            return;
-        }
+        if (!drag.moved && Math.hypot(dx, dy) < 5) return;
         drag.moved = true;
         fab.classList.add('dragging');
-        const maxX = document.documentElement.clientWidth - FAB_SIZE - EDGE_GAP * 2;
-        const maxY = window.innerHeight - FAB_SIZE - EDGE_GAP * 2;
+        const { left, top, maxX, maxY } = bounds();
         position = {
-            fx: Math.min(1, Math.max(0, (drag.origin.x + dx - EDGE_GAP) / maxX)),
-            fy: Math.min(1, Math.max(0, (drag.origin.y + dy - EDGE_GAP) / maxY))
+            fx: maxX ? Math.min(1, Math.max(0, (drag.origin.x + dx - left) / maxX)) : 0,
+            fy: maxY ? Math.min(1, Math.max(0, (drag.origin.y + dy - top) / maxY)) : 0
         };
         placeFab();
     });
-    fab.addEventListener('pointerup', event => {
-        if (!drag || event.button !== 0) {
-            return;
-        }
-        const wasDrag = drag.moved;
+    fab.addEventListener('pointerup', () => {
+        ignoreClick = Boolean(drag?.moved);
         endDrag();
-        if (wasDrag) {
-            store.set(positionKey, position);
+    });
+    fab.addEventListener('click', event => {
+        if (event.detail && ignoreClick) {
+            ignoreClick = false;
             return;
         }
-        setOpen(!panel.classList.contains('open'));
-    });
-    fab.addEventListener('keydown', event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            setOpen(!panel.classList.contains('open'));
-        }
+        setOpen(!panel.classList.contains('open'), true);
     });
 
-    $('.close').addEventListener('click', () => setOpen(false));
-    $('.sort').addEventListener('click', () => actions.sort());
-    $('.stop').addEventListener('click', () => actions.stopScroll());
-    $('.undo').addEventListener('click', () => actions.restore());
+    close.addEventListener('click', () => setOpen(false, true));
+    sort.addEventListener('click', () => actions.sort());
+    stop.addEventListener('click', () => actions.stopScroll());
+    undo.addEventListener('click', () => actions.restore());
     const presets = shadow.querySelectorAll('.preset');
-    const markPreset = seconds => presets.forEach(button => {
-        button.classList.toggle('active', Number(button.dataset.seconds) === seconds);
-    });
-    markPreset(store.get('lastSeconds', 0));
-    presets.forEach(button => {
-        button.addEventListener('click', () => {
-            const seconds = Number(button.dataset.seconds);
-            store.set('lastSeconds', seconds);
-            markPreset(seconds);
-            actions.scrollAndSort(seconds);
-        });
-    });
-    const startCustom = () => {
-        const seconds = Number(customInput.value);
-        if (!(seconds > 0)) {
-            customInput.focus();
-            return;
-        }
-        store.set('customSeconds', seconds);
-        markPreset(0);
-        actions.scrollAndSort(Math.min(seconds, MAX_SCROLL_SECONDS));
-    };
-    customInput.value = store.get('customSeconds', '') || '';
-    customInput.addEventListener('keydown', event => {
-        event.stopPropagation();
-        if (event.key === 'Enter') {
-            startCustom();
-        }
-    });
-    $('.play').addEventListener('click', startCustom);
+    const updateDuration = () => markDuration(presets, customInput, lastDuration(store));
+    function load(seconds, custom) {
+        if (busy) return;
+        rememberDuration(store, seconds, custom);
+        updateDuration();
+        actions.scrollAndSort(seconds);
+    }
+    presets.forEach(button => button.addEventListener('click', () => load(Number(button.dataset.seconds), false)));
+    customInput.value = lastDuration(store).customSeconds || '';
+    updateDuration();
+    wireCustomTime(customInput, play, $('.field-error'), seconds => load(seconds, true));
     keepInput.checked = store.get('keepSorted', true);
     keepInput.addEventListener('change', () => store.set('keepSorted', keepInput.checked));
 
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') {
-            setOpen(false);
+        if (event.key === 'Escape' && panel.classList.contains('open')) {
+            event.preventDefault();
+            setOpen(false, true);
         }
     });
     document.addEventListener('pointerdown', event => {
-        if (!event.composedPath().includes(host)) {
-            setOpen(false);
-        }
+        if (!event.composedPath().includes(host)) setOpen(false);
     });
-    window.addEventListener('resize', placeFab, { passive: true });
+    window.addEventListener('resize', () => {
+        placeFab();
+        syncBottom();
+    }, { passive: true });
     placeFab();
 
-    // Fresh cards are announced at the bottom of the window until the strip between the sorted and the fresh
-    // cards is on screen: a user who scrolls fast must not take the sorted part for the whole listing.
-    let freshCount = 0;
-    let stripOnScreen = false;
     const stripWatch = new IntersectionObserver(entries => {
-        stripOnScreen = entries[entries.length - 1].isIntersecting;
-        pill.classList.toggle('show', freshCount > 0 && !stripOnScreen);
+        if (entries.at(-1).target !== strip) return;
+        stripOnScreen = entries.at(-1).isIntersecting;
+        syncBottom();
     });
-    let watchedStrip = null;
-    pill.querySelector('button').addEventListener('click', () => actions.sort());
+    pill.querySelector('button').addEventListener('click', () => {
+        actions.sort();
+        if (pill.inert) fab.focus({ preventScroll: true });
+    });
+
+    function updateBadge() {
+        const open = panel.classList.contains('open');
+        const badge = $('.badge');
+        const text = open || freshCount ? '' : badgeText;
+        if (badge.textContent !== text) badge.textContent = text;
+        fab.setAttribute('aria-label', currentLabel ? `SuliMarket: ${currentLabel}` : 'SuliMarket: сортировка');
+    }
+    function dismissToast(restore = false) {
+        clearTimeout(toastTimer);
+        toastNode.classList.remove('show');
+        toastNode.inert = true;
+        if (restore) fab.focus({ preventScroll: true });
+        syncBottom();
+    }
+    toastClose.addEventListener('click', () => dismissToast(true));
+    toastNode.addEventListener('focusin', () => clearTimeout(toastTimer));
 
     return {
         setVisible(visible) {
-            visible = visible && store.get('showButton', true);
-            host.style.display = visible ? '' : 'none';
-            if (!visible) {
-                setOpen(false);
-            }
+            // Settings hide the launcher and panel. The page strip can still announce unsorted cards.
+            const show = visible && store.get('showButton', true);
+            fab.hidden = !show;
+            if (!show) setOpen(false);
         },
-        // One call draws the whole state: panel texts, the badge on the button and its colour.
-        render({ main, sub = '', tone = 'idle', badgeText = '', sortText, sorted = false }) {
-            statusMain.innerHTML = main;
-            statusSub.innerHTML = sub;
-            status.className = `status ${tone === 'fresh' ? 'fresh' : ''}`;
-            sortLabel.textContent = sortText;
-            $('.undo').disabled = !sorted;
-            fab.classList.toggle('sorted', sorted);
-            fab.classList.toggle('fresh', tone === 'fresh');
-            if (!busy) {
-                badge.textContent = badgeText;
+        render({ main, sub = '', sort: label, sorted = false, fresh = 0, count = 0, loading = false, stoppable = false, badge = '' }) {
+            const focused = shadow.activeElement;
+            busy = loading;
+            const statusMain = $('.status-main');
+            const statusSub = $('.status-sub');
+            if (statusMain.textContent !== main) statusMain.textContent = main;
+            if (statusSub.textContent !== sub) statusSub.textContent = sub;
+            $('.status').classList.toggle('fresh', Boolean(fresh));
+            const sortLabel = $('.sort-label');
+            if (sortLabel.textContent !== label) sortLabel.textContent = label;
+            sort.hidden = stoppable;
+            stop.hidden = !stoppable;
+            sort.disabled = loading || !count;
+            settings.disabled = loading || !count;
+            undo.disabled = !sorted || loading;
+            if (panel.classList.contains('open')) {
+                if (stoppable && (focused === sort || focused === play || focused === customInput || focused?.matches('.preset'))) stop.focus({ preventScroll: true });
+                if (!stoppable && focused === stop) (sort.disabled ? close : sort).focus({ preventScroll: true });
             }
+            if (!loading) badgeText = badge;
+            currentLabel = [main, sub].filter(Boolean).join('. ');
+            updateBadge();
+            updateDuration();
         },
-        setBusy(remainingMs, totalMs) {
-            busy = remainingMs !== null;
-            fab.classList.toggle('busy', busy);
-            panel.classList.toggle('busy', busy);
-            if (busy) {
-                badge.textContent = String(Math.ceil(remainingMs / 1000));
+        setBusy(remainingMs, totalMs, cards = false) {
+            fab.classList.toggle('busy', remainingMs !== null);
+            if (remainingMs !== null) {
+                const remaining = formatNumber(Math.ceil(remainingMs / 1000));
+                badgeText = cards ? `ещё ${counted(Math.ceil(remainingMs / 1000), GOODS)}` : `${remaining} с`;
                 progress.style.strokeDashoffset = String(ringLength * (remainingMs / totalMs));
             }
         },
-        showFresh(count, strip = null) {
+        showFresh(count, currentStrip = null) {
             freshCount = count;
-            if (strip && strip !== watchedStrip) {
+            if (currentStrip !== strip) {
                 stripWatch.disconnect();
-                stripWatch.observe(strip);
-                watchedStrip = strip;
+                strip = currentStrip;
+                stripOnScreen = Boolean(strip && strip.getBoundingClientRect().top < window.innerHeight && strip.getBoundingClientRect().bottom > 0);
+                if (strip) stripWatch.observe(strip);
             }
-            pillText.textContent = `Ещё ${counted(count, GOODS)} без сортировки`;
-            pill.classList.toggle('show', count > 0 && !stripOnScreen);
+            const text = count ? `Ещё ${counted(count, GOODS)} без сортировки` : '';
+            const pillText = $('.pill-text');
+            if (pillText.textContent !== text) pillText.textContent = text;
+            updateBadge();
+            syncBottom();
         },
         keepSorted: () => keepInput.checked,
         setKeepSorted(value) { keepInput.checked = value; },
-        toast(text) {
-            toastNode.textContent = text;
-            placePanel();
-            toastNode.classList.add('show');
+        toast(text, tone = 'info') {
             clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => toastNode.classList.remove('show'), 2600);
+            toastNode.dataset.tone = tone;
+            toastText.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+            toastNode.classList.add('show');
+            toastNode.inert = false;
+            toastText.textContent = text;
+            syncBottom();
+            if (tone === 'info') toastTimer = setTimeout(dismissToast, 5000);
+        },
+        clearSortError() {
+            if (toastNode.dataset.tone === 'error') dismissToast();
         }
     };
 }
-
 // ------------------------------------------------------------- actions
 let scrollRun = null;
 let lastRun = null;
 let lastResult = null;
+let listingProgress = null;
 let lastSortAt = 0;
 // Bumped by every listing change and every user action, so an older wait for results gives up.
 let listingGen = 0;
@@ -1928,59 +1853,45 @@ function publish(state, result = null) {
     });
 }
 
+function listingState() {
+    const sorted = site.isSorted();
+    return {
+        site: site.id,
+        sorted,
+        count: sorted && lastResult ? lastResult.count : site.visibleCount(),
+        top: sorted && lastResult ? lastResult.top : 0,
+        fresh: sorted ? site.unsortedCount() : 0,
+        progress: listingProgress,
+        stoppable: Boolean(scrollRun && !scrollRun.cancelled)
+    };
+}
+
 const actions = {
     refresh() {
-        if (scrollRun || settlingGen === listingGen) {
-            return;
-        }
-        const sortText = `Сортировать по ${site.countWord}`;
-        if (site.isSorted() && lastResult) {
-            const fresh = site.unsortedCount();
-            if (fresh > 0) {
-                ui.render({
-                    main: `Ниже ещё <b>+${formatNumber(fresh)}</b> новых`,
-                    sub: `Не отсортированы. Наверху ${counted(lastResult.count, GOODS)} по ${site.countWord}.`,
-                    tone: 'fresh',
-                    badgeText: `+${fresh}`,
-                    sortText: `Досортировать +${formatNumber(fresh)}`,
-                    sorted: true
-                });
-                banner.set({
-                    text: `Ниже ещё ${counted(fresh, GOODS)}, они не отсортированы`,
-                    action: 'Досортировать',
-                    fresh: true,
-                    handler: () => actions.sort()
-                });
-                site.placeBanner(banner.node);
-                ui.showFresh(fresh, banner.node);
-            } else {
-                ui.render({
-                    main: `Отсортировано <b>${counted(lastResult.count, GOODS)}</b>`,
-                    sub: `Наверху ${counted(lastResult.top, site.countForms)}. Листайте дальше - сайт догрузит новые`,
-                    badgeText: String(lastResult.count),
-                    sortText,
-                    sorted: true
-                });
-                banner.node.remove();
-                ui.showFresh(0);
-            }
-            return;
-        }
-        banner.node.remove();
-        ui.showFresh(0);
+        if (scrollRun || settlingGen === listingGen) return;
+        listingProgress = null;
         site.capture();
-        const loaded = site.visibleCount();
-        ui.render({
-            main: `Загружено <b>${counted(loaded, GOODS)}</b>`,
-            sub: 'Сейчас порядок сайта',
-            badgeText: loaded ? String(loaded) : '',
-            sortText
-        });
+        const state = listingState();
+        ui.render({ ...state, ...listingCopy(state), badge: state.count ? formatNumber(state.count) : '' });
+        if (state.fresh) {
+            banner.set({
+                text: `Ещё ${counted(state.fresh, GOODS)} без сортировки`,
+                action: 'Досортировать',
+                fresh: true,
+                handler: () => actions.sort()
+            });
+            site.placeBanner(banner.node);
+            ui.showFresh(state.fresh, banner.node);
+        } else {
+            banner.node.remove();
+            ui.showFresh(0);
+        }
     },
 
-    // Panel state while the script works on its own: scrolling, waiting for the site.
     showBusy(main, sub = '') {
-        ui.render({ main, sub, tone: 'busy', sortText: '' });
+        listingProgress = { main, sub };
+        const state = listingState();
+        ui.render({ ...state, ...listingCopy(state), loading: true });
     },
 
     // `auto` - started by the script, not a click; `late` - folding in cards that were already on their way,
@@ -1996,11 +1907,14 @@ const actions = {
         const result = site.sort();
         if (!result) {
             publish('idle');
+            actions.refresh();
             if (!auto) {
-                ui.toast('Карточки не найдены - это не страница выдачи');
+                ui.toast(`Карточки не найдены. ${EMPTY_LISTING}`, 'error');
             }
             return;
         }
+        listingProgress = null;
+        if (!auto && !late) ui.clearSortError();
         lastResult = result;
         if (!late) {
             lastSortAt = Date.now();
@@ -2014,7 +1928,7 @@ const actions = {
         actions.refresh();
         if (scroll) {
             const top = result.anchor.getBoundingClientRect().top + window.scrollY - 140;
-            window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+            window.scrollTo({ top: Math.max(0, top), behavior: reduceMotion.matches ? 'instant' : 'smooth' });
         }
     },
 
@@ -2029,7 +1943,7 @@ const actions = {
         publish('idle');
         actions.refresh();
         if (anchorTop !== null) {
-            window.scrollTo({ top: Math.max(0, anchorTop), behavior: 'smooth' });
+            window.scrollTo({ top: Math.max(0, anchorTop), behavior: reduceMotion.matches ? 'instant' : 'smooth' });
         }
     },
 
@@ -2042,6 +1956,7 @@ const actions = {
         const run = { stop: false, cancelled: false };
         scrollRun = run;
         publish('busy');
+        actions.showBusy('Готовлю догрузку');
         if (listingWait) {
             actions.showBusy('Жду новую выдачу', 'Сайт ещё загружает карточки');
             await listingWait;
@@ -2049,6 +1964,8 @@ const actions = {
         listingGen += 1;
         site.restore();
         lastResult = null;
+        banner.node.remove();
+        ui.showFresh(0);
         const totalMs = seconds * 1000;
         const limitMs = MAX_SCROLL_SECONDS * 1000;
         const startedAt = Date.now();
@@ -2086,18 +2003,18 @@ const actions = {
             if (elapsed < totalMs) {
                 const remaining = totalMs - elapsed;
                 ui.setBusy(remaining, totalMs);
-                actions.showBusy(`Листаю, ещё <b>${Math.ceil(remaining / 1000)} с</b>`, `Загружено ${counted(loaded, GOODS)}`);
+                actions.showBusy(`Догружаю товары, ещё ${formatNumber(Math.ceil(remaining / 1000))}\u00a0с`, `Загружено ${counted(loaded, GOODS)}`);
             } else {
                 // The badge counts down the cards still missing instead of seconds.
-                ui.setBusy(Math.max(0, min - loaded) * 1000, min * 1000);
-                actions.showBusy(`Набираю <b>${formatNumber(min)}</b>`, `Загружено ${counted(loaded, GOODS)}`);
+                ui.setBusy(Math.max(0, min - loaded) * 1000, min * 1000, true);
+                actions.showBusy(`Догружаю ещё ${counted(Math.max(0, min - loaded), GOODS)}`, `Загружено ${counted(loaded, GOODS)}`);
             }
             await wait(280);
         }
         scrollRun = null;
         ui.setBusy(null);
         if (run.cancelled) {
-            publish('idle');
+            if (settlingGen !== listingGen) publish('idle');
             actions.refresh();
             return;
         }
@@ -2232,7 +2149,7 @@ new MutationObserver(records => {
     if (site.isSorted()) {
         site.hideSorted();
     }
-    if (captureTimer || scrollRun || records.every(record => site.isOwnNode(record.target))) {
+    if (captureTimer || scrollRun || records.every(({ target }) => site.isOwnNode(target) || target.closest?.('[data-ssm-ui], [data-ssm-shop], #sulimarket-ui'))) {
         return;
     }
     captureTimer = setTimeout(() => {
@@ -2256,7 +2173,7 @@ function retireOldScript() {
     old.remove();
     if (!sessionStorage.getItem('sulimarket:old-told')) {
         sessionStorage.setItem('sulimarket:old-told', '1');
-        ui.toast('Старый SSMarket ещё стоит в Tampermonkey - удалите его там');
+        ui.toast('Откройте Tampermonkey и удалите старый скрипт SSMarket.', 'warning');
     }
 }
 

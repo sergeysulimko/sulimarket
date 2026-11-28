@@ -1,12 +1,9 @@
 const $ = selector => document.querySelector(selector);
-const number = value => value.toLocaleString('ru-RU');
-const plurals = new Intl.PluralRules('ru');
-function word(value, forms) { return forms[plurals.select(value)] || forms.many; }
-function counted(value, forms) { return `${number(value)} ${word(value, forms)}`; }
-function strong(value) {
+function countMarkup(count, forms) {
+    const formatted = formatNumber(count);
     const node = document.createElement('strong');
-    node.textContent = number(value);
-    return node;
+    node.textContent = formatted;
+    return [node, counted(count, forms).slice(formatted.length)];
 }
 // Ask for a store rating once, after the third sort the user asked for; "asked" is saved the moment the ask shows.
 const RATE_AFTER_SORTS = 3;
@@ -14,6 +11,9 @@ let rateShown = false;
 let tabId;
 let pendingCount = 0;
 let queue = Promise.resolve();
+let storedCustom;
+const secondsInput = $('#seconds');
+const presets = document.querySelectorAll('[data-seconds]');
 
 function render(state) {
     $('footer').hidden = true;
@@ -21,26 +21,32 @@ function render(state) {
     $('#other').hidden = true;
     $('#site').hidden = false;
     $('#site').textContent = state.site === 'ozon' ? 'Ozon' : 'Wildberries';
-    const countWord = state.site === 'ozon' ? 'отзывам' : 'оценкам';
-    $('#sort').textContent = `Сортировать по ${countWord}`;
-    $('#status').textContent = state.busy
-        ? 'Догружаю товары. Затем отсортирую.'
-        : state.sorted
-            ? `Отсортировано ${counted(state.count, {one:'товар',few:'товара',many:'товаров'})}. Наверху ${counted(state.top, state.site === 'ozon' ? {one:'отзыв',few:'отзыва',many:'отзывов'} : {one:'оценка',few:'оценки',many:'оценок'})}.`
-            : state.count ? `Загружено ${counted(state.count, {one:'товар',few:'товара',many:'товаров'})}. Сейчас порядок сайта.`
-                : 'Откройте поиск или категорию товаров в этом магазине.';
-    if (state.sorted && !state.busy) {
-        $('#status').replaceChildren(
-            'Отсортировано ', strong(state.count), ` ${word(state.count, {one:'товар',few:'товара',many:'товаров'})}.`,
-            document.createElement('br'), 'Наверху ', strong(state.top),
-            ` ${word(state.top, state.site === 'ozon' ? {one:'отзыв',few:'отзыва',many:'отзывов'} : {one:'оценка',few:'оценки',many:'оценок'})}.`
-        );
+    const focused = document.activeElement;
+    const progress = state.progress ?? (state.busy ? { main: 'Догружаю товары. Затем отсортирую.', sub: '' } : null);
+    const stoppable = state.stoppable ?? (state.busy && !state.progress);
+    const copy = listingCopy({ ...state, progress });
+    const sort = $('#sort');
+    const stop = $('#stop');
+    if (sort.textContent !== copy.sort) sort.textContent = copy.sort;
+    const status = $('#status');
+    const summary = copy.sub ? `${copy.main}. ${copy.sub}.` : copy.main;
+    if (status.dataset.summary !== summary) {
+        status.dataset.summary = summary;
+        if (state.sorted && !state.busy && !state.fresh) {
+            status.replaceChildren('Отсортировано ', ...countMarkup(state.count, GOODS), '.', document.createElement('br'),
+                'Наверху ', ...countMarkup(state.top, state.site === 'ozon' ? REVIEWS : RATINGS), '.');
+        } else {
+            status.textContent = summary;
+        }
     }
-    $('#sort').hidden = state.busy;
-    $('#sort').disabled = !state.count;
-    $('#stop').hidden = !state.busy;
+    sort.hidden = stoppable;
+    sort.disabled = state.busy || !state.count;
+    stop.hidden = !stoppable;
     $('#loading').disabled = state.busy;
+    $('#loading').inert = !state.count && !state.busy;
     $('#restore').disabled = !state.sorted || state.busy;
+    if (stoppable && (focused === sort || $('#loading').contains(focused))) stop.focus();
+    if (!stoppable && focused === stop) (sort.disabled ? $('#keep') : sort).focus();
     if (!rateShown && state.sorted && !state.busy && state.sortCount >= RATE_AFTER_SORTS && !state.rateAsked) {
         rateShown = true;
         send('rated');
@@ -48,10 +54,12 @@ function render(state) {
     $('#rate').hidden = !rateShown;
     $('#keep').checked = state.keepSorted;
     $('#show').checked = state.showButton;
-    if (document.activeElement !== $('#seconds')) $('#seconds').value = state.customSeconds || '';
-    document.querySelectorAll('[data-seconds]').forEach(button => {
-        button.setAttribute('aria-pressed', String(Number(button.dataset.seconds) === state.lastSeconds));
-    });
+    const duration = state.duration ?? { seconds: state.lastSeconds, custom: false, customSeconds: state.customSeconds };
+    if (storedCustom !== duration.customSeconds) {
+        storedCustom = duration.customSeconds;
+        if (document.activeElement !== secondsInput) secondsInput.value = storedCustom || '';
+    }
+    markDuration(presets, secondsInput, duration);
 }
 
 function send(command, extra = {}) {
@@ -61,11 +69,12 @@ function send(command, extra = {}) {
         try {
             const state = await chrome.tabs.sendMessage(tabId, { channel: 'sulimarket:popup', command, ...extra });
             if (state.error) throw new Error(state.error);
-            $('#error').hidden = true;
+            if (command !== 'status' || $('#error').dataset.source === 'status') $('#error').hidden = true;
             render(state);
-        } catch (error) {
+        } catch {
+            $('#error').dataset.source = command;
             $('#error').textContent = command === 'status'
-                ? 'Обновите страницу магазина, чтобы подключить SuliMarket.' : `Не удалось выполнить действие: ${error.message}`;
+                ? 'Обновите страницу магазина, чтобы подключить SuliMarket.' : 'Не удалось выполнить действие. Обновите страницу магазина и попробуйте снова.';
             $('#error').hidden = false;
             if (command === 'status' && $('#controls').hidden) $('#status').textContent = 'SuliMarket пока не подключён к этой странице.';
         } finally {
@@ -82,16 +91,10 @@ $('#stop').addEventListener('click', () => send('stop'));
 $('#restore').addEventListener('click', () => send('restore'));
 $('#keep').addEventListener('change', () => send('keep', { value: $('#keep').checked }));
 $('#show').addEventListener('change', () => send('show', { value: $('#show').checked }));
-document.querySelectorAll('[data-seconds]').forEach(button => {
+presets.forEach(button => {
     button.addEventListener('click', () => send('load', { seconds: Number(button.dataset.seconds) }));
 });
-function loadCustom() {
-    const input = $('#seconds');
-    if (!input.value) { input.focus(); input.reportValidity(); return; }
-    if (input.reportValidity()) send('load', { seconds: Number(input.value), custom: true });
-}
-$('#play').addEventListener('click', loadCustom);
-$('#seconds').addEventListener('keydown', event => { if (event.key === 'Enter') loadCustom(); });
+wireCustomTime(secondsInput, $('#play'), $('#seconds-error'), seconds => send('load', { seconds, custom: true }));
 
 async function start() {
     $('#version').textContent = `v${chrome.runtime.getManifest().version}`;

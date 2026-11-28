@@ -66,7 +66,7 @@ export const catalogue = [
     core('.fab .badge', 'status', 'fab-badge', '.fab .badge', 'listing',
         { selected: 'sorted', active: 'fresh', loading: 'busy' }),
     core('.panel .chip', 'status', 'panel-site'),
-    core('.panel .ver', 'type', 'panel-version'),
+    core('.panel .ver', 'type', 'panel-version', '.panel .ver', 'panel-version'),
     core('.panel .close', 'button', 'panel-close', '.panel .close', 'panel', { focus: 'panel' }),
     core('.panel .status', 'data-state', 'panel-status', '.panel .status', 'panel',
         { loading: 'panel-busy', selected: 'panel-sorted', active: 'panel-fresh' }),

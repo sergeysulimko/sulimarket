@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
+const shared = readFileSync(new URL('../src/sort-ui.js', import.meta.url), 'utf8');
 const source = readFileSync(new URL('../src/popup-bridge.js', import.meta.url), 'utf8');
 function setup() {
     const calls = [];
@@ -10,13 +11,23 @@ function setup() {
     let listener;
     const scope = {
         site: { id: 'ozon', capture() {}, isSorted: () => false, visibleCount: () => 20, isListing: () => true },
-        lastResult: null, scrollRun: null, MAX_SCROLL_SECONDS: 180,
+        lastResult: null, scrollRun: null, listingProgress: null,
+        listingState() {
+            return {
+                site: scope.site.id,
+                sorted: Boolean(scope.lastResult),
+                count: scope.lastResult?.count ?? scope.site.visibleCount(),
+                top: scope.lastResult?.top ?? 0,
+                progress: scope.listingProgress,
+                stoppable: Boolean(scope.scrollRun)
+            };
+        },
         store: { get: (key, fallback) => values[key] ?? fallback, set: (key, value) => { values[key] = value; } },
         ui: { keepSorted: () => true, setKeepSorted: value => calls.push(['keep', value]), setVisible: value => calls.push(['show', value]) },
         actions: Object.fromEntries(['sort', 'stopScroll', 'restore', 'scrollAndSort'].map(name => [name, (...args) => calls.push([name, ...args])])),
         chrome: { runtime: { id: 'our-extension', onMessage: { addListener(fn) { listener = fn; } } } }
     };
-    vm.runInNewContext(source, scope);
+    vm.runInNewContext(shared + "\n" + source, scope);
     return {
         calls, scope, values,
         send(command, extra = {}, id = 'our-extension') {
@@ -42,7 +53,9 @@ test('timed loading accepts whole seconds within the core limit only', () => {
     assert.deepEqual(bridge.calls, []);
     bridge.send('load', { seconds: 8, custom: true });
     assert.deepEqual(bridge.calls, [['scrollAndSort', 8]]);
-    assert.equal(bridge.values.customSeconds, 8);
+    assert.equal(bridge.values.duration.customSeconds, 8);
+    assert.equal(bridge.send('load', { seconds: 5, custom: true }).duration.custom, true);
+    assert.equal(bridge.send('load', { seconds: 5 }).duration.custom, false);
 });
 
 test('busy work cannot be replaced by sort, restore or a second load', () => {
