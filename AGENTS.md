@@ -29,7 +29,7 @@ door, law. An owner exists - do not build your own on top; the order carries eve
   the site page and fails without a CHANGELOG entry; `scripts/merge-gate.sh` stops /main if the stamp is not
   committed), /main, then `gh release create vX.Y.Z` from main with `dist/sulimarket.user.js`,
   `dist/ssmarket-bridge.user.js` and the zip. Userscripts update from `releases/latest`.
-- Chrome store after a release: the API uploads the new zip and submits it (key and calls - `STORES.md` in
+- Chrome store after a release: `scripts/cws.py upload dist/<zip>`, then `publish` (submits for review with automatic publishing); key and calls - `STORES.md` in
   sulimko-com, `docs/products/sulimarket/`); a review in progress is cancelled first. Description and screenshots
   change only in the developer console: keep them equal to `store/chrome-web-store.md` and `store/screenshots/`.
 
