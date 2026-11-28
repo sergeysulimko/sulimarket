@@ -1,10 +1,22 @@
 // One source, two products: `npm run build` writes the Tampermonkey script and the browser extension to dist/.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, copyFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { marketStyles } from './src/market-styles.mjs';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const version = pkg.version;
-const core = readFileSync('src/core.js', 'utf8').replaceAll('__VERSION__', version);
+const styles = marketStyles(
+    readFileSync('vendor/energy-dots/energy-dots.css', 'utf8'),
+    readFileSync('vendor/energy-dots/primitives.css', 'utf8'),
+    readFileSync('src/brand.css', 'utf8'),
+    readFileSync('src/market.css', 'utf8'),
+    `data:font/woff2;base64,${readFileSync('assets/fonts/InterVariable.woff2').toString('base64')}`
+);
+const core = [
+    `const marketCss = ${JSON.stringify(styles)};`,
+    readFileSync('src/sort-ui.js', 'utf8'),
+    readFileSync('src/core.js', 'utf8').replaceAll('__VERSION__', version)
+].join('\n');
 const indented = core.split('\n').map(line => (line ? `    ${line}` : line)).join('\n');
 
 const REPO = 'https://github.com/sergeysulimko/sulimarket';
@@ -134,7 +146,7 @@ const manifest = {
 };
 writeFileSync('dist/extension/manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
 
-for (const file of ['popup.html', 'popup.css', 'popup.js']) {
+for (const file of ['popup.html', 'popup.css', 'popup.js', 'brand.css', 'sort-ui.js']) {
     copyFileSync(`src/${file}`, `dist/extension/${file}`);
 }
 // The popup loads the pinned language files from vendor/ (pin.json); they ship in the package as plain files.

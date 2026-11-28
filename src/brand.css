@@ -1,0 +1,30 @@
+/* SuliMarket's palette. The site panel and the Chrome popup both use the language's brand slot. */
+:root {
+    color-scheme: light dark;
+    --body: #FCFCFE;
+    --ink: #111418;
+    --ink-muted: #5A6471;
+    --line: #D9DEE5;
+    --fill: #F0F2F5;
+    --chrome: #F5F6F8;
+    --line-control: #D3D9E1;
+    --brand: #C8FF00;
+    --brand-ink: #03080A;
+    --font-inter-ss01: 1;
+    --font-inter-ss03: 0;
+    --disabled-fill: var(--fill);
+    --disabled-line: var(--line);
+    --disabled-ink: var(--ink-muted);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --body: #101316;
+        --ink: #F3F5F8;
+        --ink-muted: #B9C2CF;
+        --line: #343C46;
+        --fill: #1C2127;
+        --chrome: #1C2127;
+        --line-control: #38414C;
+    }
+}

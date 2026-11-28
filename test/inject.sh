@@ -6,5 +6,14 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 session="$1"
 port="$2"
-script="$(cat "$here/dist/sulimarket.user.js")"
-AGENT_BROWSER_SESSION="$session" agent-browser --cdp "$port" eval "window.__ssmErrors = []; window.addEventListener('error', e => window.__ssmErrors.push(String(e.message))); window.addEventListener('unhandledrejection', e => window.__ssmErrors.push('rejection: ' + String(e.reason))); document.getElementById('sulimarket-ui')?.remove(); delete document.documentElement.dataset.sulimarket; $script; 'injected'"
+{
+    cat <<'JS'
+window.__ssmErrors = [];
+window.addEventListener('error', e => window.__ssmErrors.push(String(e.message)));
+window.addEventListener('unhandledrejection', e => window.__ssmErrors.push('rejection: ' + String(e.reason)));
+document.getElementById('sulimarket-ui')?.remove();
+delete document.documentElement.dataset.sulimarket;
+JS
+    cat "$here/dist/sulimarket.user.js"
+    printf "\n'injected'\n"
+} | AGENT_BROWSER_SESSION="$session" agent-browser --cdp "$port" eval --stdin

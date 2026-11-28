@@ -2,15 +2,11 @@
 function popupState() {
     site.capture();
     return {
-        site: site.id,
-        sorted: site.isSorted(),
-        busy: Boolean(scrollRun),
-        count: lastResult?.count ?? site.visibleCount(),
-        top: lastResult?.top ?? 0,
+        ...listingState(),
+        busy: Boolean(scrollRun || listingProgress),
+        duration: lastDuration(store),
         keepSorted: ui.keepSorted(),
         showButton: store.get('showButton', true),
-        lastSeconds: store.get('lastSeconds', 0),
-        customSeconds: store.get('customSeconds', ''),
         sortCount: store.get('sortCount', 0),
         rateAsked: store.get('rateAsked', false)
     };
@@ -21,9 +17,9 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     switch (message.command) {
         case 'status': break;
         case 'rated': store.set('rateAsked', true); break;
-        case 'sort': if (!scrollRun) actions.sort(); break;
+        case 'sort': if (!scrollRun && !listingProgress && site.visibleCount()) actions.sort(); break;
         case 'stop': actions.stopScroll(); break;
-        case 'restore': if (!scrollRun) actions.restore(); break;
+        case 'restore': if (!scrollRun && !listingProgress) actions.restore(); break;
         case 'keep':
             if (typeof message.value !== 'boolean') return;
             store.set('keepSorted', message.value);
@@ -35,13 +31,12 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
             ui.setVisible(site.isListing() || site.isSorted() || Boolean(scrollRun));
             break;
         case 'load':
-            if (!Number.isInteger(message.seconds) || message.seconds < 1 || message.seconds > MAX_SCROLL_SECONDS) {
-                respond({ error: 'Укажите от 1 до 180 секунд.' });
+            if (!validSeconds(message.seconds)) {
+                respond({ error: SECONDS_ERROR });
                 return;
             }
-            if (!scrollRun) {
-                store.set('lastSeconds', message.seconds);
-                if (message.custom) store.set('customSeconds', message.seconds);
+            if (!scrollRun && !listingProgress && site.visibleCount()) {
+                rememberDuration(store, message.seconds, message.custom === true);
                 actions.scrollAndSort(message.seconds);
             }
             break;
