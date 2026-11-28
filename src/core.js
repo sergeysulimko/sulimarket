@@ -30,6 +30,12 @@ const LATE_CARDS_MS = 4000;
 const PAGING_PARAMS = ['page', 'layout_page_index', 'paginator_token', 'search_page_state', 'start_page_id'];
 // The address command of SuliMarket itself (see runAddressCommand); it does not make a new listing.
 const COMMAND_PARAM = 'sulimarket';
+// ?sulimarket-min=200: after the seconds, keep loading until this many cards (up to MAX_SCROLL_SECONDS).
+const MIN_PARAM = 'sulimarket-min';
+const MAX_MIN_CARDS = 5000;
+// No new card for this long while the page keeps reaching its bottom: the listing has ended.
+const END_QUIET_MS = 10000;
+const BOTTOM_RECENT_MS = 2000;
 
 function parseCount(text) {
     return parseInt(String(text).replace(/[^\d]/g, ''), 10) || 0;
@@ -84,27 +90,54 @@ function compareItems(a, b) {
 const PRODUCT_LINKS = 'a[href*="/product/"], a[href*="/detail.aspx"]';
 const PRICE = /^\d[\d\s\u2009\u00a0]*\s?₽$/;
 
-// Title, address and price of a card for the machine-readable result. The title is the longest wordy text
-// inside the product links: the counts and the price there carry no three letters in a row or are shorter.
+const MONTHS = 'января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря';
+// The delivery line of a card: "Завтра", "Послезавтра", "4 декабря", "Через 3 дня".
+const DELIVERY = new RegExp(`^(сегодня|завтра|послезавтра|через \\d+ (?:дн|час)\\S*|\\d{1,2} (?:${MONTHS})(?: \\d{4})?)$`, 'i');
+// Wildberries prints the wallet price first and says so in a line of its own.
+const PRICE_NOTE = /^с (?:WB Кошельком|Ozon Картой)$/i;
+
+// Title, address, prices and delivery of a card for the machine-readable result. The title is the longest wordy
+// text inside the product links: the counts and the price there carry no three letters in a row or are shorter.
+// The site prints the current price first and the price before the discount after it.
 function describeCard(node) {
     const link = node.querySelector(PRODUCT_LINKS);
     const url = link ? new URL(link.getAttribute('href'), location.origin) : null;
     const texts = leafTexts(node);
-    const price = texts.find(text => PRICE.test(text));
+    const prices = texts.filter(text => PRICE.test(text)).map(parseCount);
+    const price = prices.length ? prices[0] : null;
+    const oldPrice = Math.max(0, ...prices.slice(1));
     const linkTexts = Array.from(node.querySelectorAll(PRODUCT_LINKS)).flatMap(leafTexts);
     const title = (linkTexts.length ? linkTexts : texts)
         .filter(text => /[a-zа-яё]{3}/i.test(text) && !PRICE.test(text))
         .sort((a, b) => b.length - a.length)[0] || '';
-    return {
+    const id = url?.pathname.match(/\/catalog\/(\d+)\//)?.[1] || url?.pathname.match(/(\d+)\/?$/)?.[1] || null;
+    // Wildberries: "ZETTER", "/", "Швабра ..." - the brand stands before the slash.
+    const slash = texts.indexOf('/');
+    const shop = node.querySelector('[data-ssm-shop][data-ssm-seller]')?.dataset;
+    const card = {
+        id,
         title: title.replace(/^\/\s*/, ''),
         url: url ? url.origin + url.pathname : '',
-        price: price ? parseCount(price) : null
+        price,
+        oldPrice: price && oldPrice > price ? oldPrice : null,
+        priceNote: texts.find(text => PRICE_NOTE.test(text)) || null,
+        delivery: texts.find(text => DELIVERY.test(text)) || null,
+        brand: slash > 0 ? texts[slash - 1] : null
     };
+    if (shop) {
+        card.seller = {
+            name: shop.ssmSeller,
+            rating: Number(shop.ssmRating) || null,
+            sales: Number(shop.ssmSales) || 0,
+            since: shop.ssmSince || null
+        };
+    }
+    return card;
 }
 
 function listingKey() {
     const params = new URLSearchParams(location.search);
-    [...PAGING_PARAMS, COMMAND_PARAM].forEach(name => params.delete(name));
+    [...PAGING_PARAMS, COMMAND_PARAM, MIN_PARAM].forEach(name => params.delete(name));
     params.sort();
     return `${location.pathname}?${params}`;
 }
@@ -1174,6 +1207,13 @@ function createWbSellers() {
             const shortName = name.length > NAME_CHARS ? `${name.slice(0, NAME_CHARS - 1).trim()}...` : name;
             fill(line, `${shortName || 'Продавец'} · ${describe(shop, ['rating', 'year'])}`, shop);
             line.title = `Продавец ${name}: ${describe(shop, ['rating', 'ratings'])}`;
+            // The same facts for #sulimarket-result (describeCard).
+            Object.assign(line.dataset, {
+                ssmSeller: name || String(id),
+                ssmRating: String(shop.rating || ''),
+                ssmSales: String(shop.sales || 0),
+                ssmSince: shop.since || ''
+            });
             if (!line.isConnected) {
                 title.after(line);
             }
@@ -1837,6 +1877,7 @@ function createUi() {
 
 // ------------------------------------------------------------- actions
 let scrollRun = null;
+let lastRun = null;
 let lastResult = null;
 let lastSortAt = 0;
 // Bumped by every listing change and every user action, so an older wait for results gives up.
@@ -1875,6 +1916,9 @@ function publish(state, result = null) {
         countOf: site.id === 'ozon' ? 'reviews' : 'ratings',
         state,
         url: location.href,
+        // How the last timed load went: seconds, min, loaded, end (the listing ran out), stop - why it stopped:
+        // "time" (the seconds passed), "min" (enough cards), "end", "limit" (MAX_SCROLL_SECONDS), "user".
+        run: result ? lastRun : null,
         items: result ? result.items.map((item, index) => ({
             rank: index + 1,
             ...describeCard(item.node),
@@ -1941,9 +1985,13 @@ const actions = {
 
     // `auto` - started by the script, not a click; `late` - folding in cards that were already on their way,
     // which must not extend the folding window.
-    sort({ scroll = true, auto = false, late = false } = {}) {
+    // `run` - how the timed load before this sort went, for #sulimarket-result; folding in late cards keeps it.
+    sort({ scroll = true, auto = false, late = false, run = null } = {}) {
         if (!auto) {
             listingGen += 1;
+        }
+        if (!late) {
+            lastRun = run;
         }
         const result = site.sort();
         if (!result) {
@@ -1985,7 +2033,9 @@ const actions = {
         }
     },
 
-    async scrollAndSort(seconds) {
+    // Scrolls for `seconds`, then, with `min`, on until `min` cards are loaded; a listing that ran out ends it early,
+    // MAX_SCROLL_SECONDS ends it in any case.
+    async scrollAndSort(seconds, { min = 0 } = {}) {
         if (scrollRun) {
             return;
         }
@@ -2000,16 +2050,48 @@ const actions = {
         site.restore();
         lastResult = null;
         const totalMs = seconds * 1000;
+        const limitMs = MAX_SCROLL_SECONDS * 1000;
         const startedAt = Date.now();
-        while (!run.stop && Date.now() - startedAt < totalMs) {
+        let loaded = site.visibleCount();
+        let grewAt = startedAt;
+        let bottomAt = 0;
+        let stop = 'user';
+        while (!run.stop) {
+            const elapsed = Date.now() - startedAt;
+            if (elapsed >= limitMs) {
+                stop = 'limit';
+                break;
+            }
+            if (elapsed >= totalMs && !(min && loaded < min)) {
+                stop = min && loaded >= min ? 'min' : 'time';
+                break;
+            }
+            if (Date.now() - grewAt >= END_QUIET_MS && Date.now() - bottomAt < BOTTOM_RECENT_MS) {
+                stop = 'end';
+                break;
+            }
             // At the bottom a scroll does not move and fires no event, so the site never asks for the next
             // page: step back to make the following step a real scroll.
             const atBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 4;
+            if (atBottom) {
+                bottomAt = Date.now();
+            }
             window.scrollBy(0, atBottom ? -window.innerHeight : Math.max(400, window.innerHeight * 0.8));
             site.capture();
-            const remaining = Math.max(0, totalMs - (Date.now() - startedAt));
-            ui.setBusy(remaining, totalMs);
-            actions.showBusy(`Листаю, ещё <b>${Math.ceil(remaining / 1000)} с</b>`, `Загружено ${counted(site.visibleCount(), GOODS)}`);
+            const next = site.visibleCount();
+            if (next > loaded) {
+                loaded = next;
+                grewAt = Date.now();
+            }
+            if (elapsed < totalMs) {
+                const remaining = totalMs - elapsed;
+                ui.setBusy(remaining, totalMs);
+                actions.showBusy(`Листаю, ещё <b>${Math.ceil(remaining / 1000)} с</b>`, `Загружено ${counted(loaded, GOODS)}`);
+            } else {
+                // The badge counts down the cards still missing instead of seconds.
+                ui.setBusy(Math.max(0, min - loaded) * 1000, min * 1000);
+                actions.showBusy(`Набираю <b>${formatNumber(min)}</b>`, `Загружено ${counted(loaded, GOODS)}`);
+            }
             await wait(280);
         }
         scrollRun = null;
@@ -2020,7 +2102,15 @@ const actions = {
             return;
         }
         site.capture();
-        actions.sort();
+        actions.sort({
+            run: {
+                seconds: Math.round((Date.now() - startedAt) / 1000),
+                min: min || null,
+                loaded: site.visibleCount(),
+                end: stop === 'end',
+                stop
+            }
+        });
     },
 
     stopScroll() {
@@ -2107,6 +2197,8 @@ const actions = {
             return false;
         }
         const seconds = Math.min(MAX_SCROLL_SECONDS, Number(value || 0));
+        const minValue = fromHash ? null : new URLSearchParams(location.search).get(MIN_PARAM);
+        const min = /^\d+$/.test(minValue || '') ? Math.min(MAX_MIN_CARDS, Number(minValue)) : 0;
         publish('busy');
         const deadline = Date.now() + RESULTS_WAIT_MS;
         let signature = '';
@@ -2124,8 +2216,8 @@ const actions = {
         if (listingWait) {
             await listingWait;
         }
-        if (seconds) {
-            actions.scrollAndSort(seconds);
+        if (seconds || min) {
+            actions.scrollAndSort(seconds, { min });
         } else {
             actions.sort({ scroll: false });
         }

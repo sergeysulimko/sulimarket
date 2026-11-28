@@ -6,7 +6,7 @@
   <img src="store/banner-1400x560-light.png" alt="SuliMarket - один клик, и наверху товары, которые купили тысячи" width="1400">
 </picture>
 
-[![Версия](https://img.shields.io/badge/версия-3.5.0-03080a.svg)](CHANGELOG.md)
+[![Версия](https://img.shields.io/badge/версия-3.6.0-03080a.svg)](CHANGELOG.md)
 [![Лицензия: MIT](https://img.shields.io/badge/лицензия-MIT-03080a.svg)](LICENSE)
 [![Chrome и Яндекс Браузер](https://img.shields.io/badge/Chrome%20·%20Яндекс%20·%20Edge-расширение-03080a.svg)](#как-установить)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-скрипт-03080a.svg)](#через-tampermonkey)
@@ -158,11 +158,16 @@ AI-агент с браузером (Claude, ChatGPT Agent, Operator, Comet, с�
 
 1. Откройте адрес выдачи с параметром `sulimarket`:
    - `?sulimarket` - отсортировать то, что сайт загрузил;
-   - `?sulimarket=10` - листать выдачу 10 секунд, потом отсортировать всё загруженное (до 180 секунд).
+   - `?sulimarket=10` - листать выдачу 10 секунд, потом отсортировать всё загруженное (до 180 секунд);
+   - `?sulimarket=60&sulimarket-min=200` - листать не меньше 60 секунд и дальше, пока не загрузится 200 карточек
+     (всего до 180 секунд).
+
+   Выдача кончилась (10 секунд нет новых карточек, страница внизу) - SuliMarket сортирует загруженное, не дожидаясь
+   конца времени.
 
    ```
    https://www.ozon.ru/search/?text=наушники&sulimarket=10
-   https://www.wildberries.ru/catalog/0/search.aspx?search=чайник&sulimarket=10
+   https://www.wildberries.ru/catalog/0/search.aspx?search=чайник&sulimarket=60&sulimarket-min=200
    ```
 
 2. Дождитесь `<html data-sulimarket-state="sorted">`. Пока SuliMarket ждёт сайт или листает, там `busy`.
@@ -170,26 +175,36 @@ AI-агент с браузером (Claude, ChatGPT Agent, Operator, Comet, с�
 
    ```json
    {
-     "version": "3.5.0",
-     "site": "ozon",
-     "countOf": "reviews",
+     "version": "3.6.0",
+     "site": "wb",
+     "countOf": "ratings",
      "state": "sorted",
-     "url": "https://www.ozon.ru/category/feny-10739/?...",
+     "url": "https://www.wildberries.ru/catalog/0/search.aspx?search=...",
+     "run": { "seconds": 60, "min": 200, "loaded": 640, "end": false, "stop": "min" },
      "items": [
        {
          "rank": 1,
-         "title": "Компактный мощный Фен для волос со складной ручкой SC-074...",
-         "url": "https://www.ozon.ru/product/kompaktnyy-moshchnyy-fen-...-1326742535/",
-         "price": 1091,
-         "count": 44615,
+         "id": "67858518",
+         "title": "Швабра с отжимом и ведром для мытья полов M 2.0, 1 насадка",
+         "url": "https://www.wildberries.ru/catalog/67858518/detail.aspx",
+         "price": 2190,
+         "oldPrice": 3197,
+         "priceNote": "с WB Кошельком",
+         "delivery": "Послезавтра",
+         "brand": "ZETTER",
+         "seller": { "name": "Zetter - официальный магазин", "rating": 4.8, "sales": 1825309, "since": "2021-04-29T10:09:42Z" },
+         "count": 177371,
          "rating": 4.9
        }
      ]
    }
    ```
 
-`count` - число отзывов на Ozon (`countOf: "reviews"`) или оценок на Wildberries (`countOf: "ratings"`), `price` - цена
-в рублях с карточки. На уже открытой странице то же делает `#sulimarket` или `#sulimarket=10` в конце адреса.
+`count` - число отзывов на Ozon (`countOf: "reviews"`) или оценок на Wildberries (`countOf: "ratings"`), `price` - первая
+цена с карточки в рублях, `oldPrice` - цена до скидки, `delivery` - срок доставки с карточки. `seller` - только на
+Wildberries и только у карточек, где строка продавца уже показана. `run` - как прошла догрузка: `stop` = `min`
+(набрано), `time` (вышло время), `end` (выдача кончилась), `limit` (180 секунд), `user` (остановили); без догрузки
+`run` пустой. На уже открытой странице то же делает `#sulimarket` или `#sulimarket=10` в конце адреса.
 
 Пример для Playwright:
 
