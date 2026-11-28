@@ -4,10 +4,6 @@ import core from '../src/core.js?raw';
 import popup from '../src/popup.html?raw';
 import popupCss from '../src/popup.css?raw';
 import popupJs from '../src/popup.js?raw';
-import languageCss from '../vendor/energy-dots/energy-dots.css?raw';
-import primitivesCss from '../vendor/energy-dots/primitives.css?raw';
-import focusJs from '../vendor/energy-dots/focus.js?raw';
-import buttonJs from '../vendor/energy-dots/button.js?raw';
 import promo from '../assets/promo.html?raw';
 import social from '../assets/social.html?raw';
 import icon from '../assets/icon.svg?raw';
@@ -42,8 +38,7 @@ function sourceDocument(source) {
 
 function popupScene(setup) {
     const { body } = sourceDocument(popup);
-    return html(body, assets(`${languageCss}\n${primitivesCss}\n${popupCss}`),
-        `${focusJs}\n${buttonJs}\n(${mockChrome})(${JSON.stringify(setup)}, ${JSON.stringify(version)});\n${popupJs}`);
+    return html(body, assets(popupCss), `(${mockChrome})(${JSON.stringify(setup)}, ${JSON.stringify(version)});\n${popupJs}`);
 }
 
 function assets(source) {
