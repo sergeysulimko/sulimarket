@@ -1,0 +1,18 @@
+# Shared SwiftUI token rules. Product-only rules belong in the consumer's child config.
+only_rules:
+  - custom_rules
+custom_rules:
+  energy_raw_color:
+    name: 'Energy + dots 1.1: Shared design colors'
+    regex: '\b(?:Color|NSColor|UIColor)\s*\(\s*(?:(?:\.sRGB|\.sRGBLinear|\.displayP3)\s*,\s*)?(?:hex:\s*0x[0-9A-Fa-f]+|(?:red|sRGBRed|white|hue):\s*[0-9.]+)'
+    match_kinds: &code [identifier, typeidentifier, keyword, number, argument, parameter]
+    excluded: ['(?:^|/)(?:EnergyDotsTokens|Tokens(?:\.generated)?|NativeTypography)\.swift$']
+    message: 'Use a semantic design system color.'
+    severity: error
+  energy_raw_type:
+    name: 'Energy + dots 9.4: Shared typography roles'
+    regex: '(?:\.font\s*\(\s*\.system\s*\(\s*size|\bFont\s*\.\s*system\s*\(\s*size|\b(?:systemFont|monospacedSystemFont|boldSystemFont)\s*\(\s*ofSize)\s*:\s*[0-9.]+'
+    match_kinds: *code
+    excluded: ['(?:^|/)(?:EnergyDotsTokens|Tokens(?:\.generated)?|NativeTypography)\.swift$']
+    message: 'Use a design system type role.'
+    severity: error

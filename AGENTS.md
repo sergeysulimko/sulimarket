@@ -25,6 +25,10 @@ door, law. An owner exists - do not build your own on top; the order carries eve
   more, "Ещё N товаров без сортировки" shows at the bottom), the Ozon sellers window ("Есть дешевле": shop lines,
   "По отзывам"), WB shop lines on result cards, under the seller on a product page and on "Предложения продавцов"
   (`/catalog/<id>/other-sellers`, "По отзывам").
+- Design language: the popup is a consumer of energy + dots (sulimko-com `design-language`, pinned in
+  `vendor/energy-dots/pin.json`; `build.mjs` packs the four files into the extension). `npm run check:design` runs the
+  shared stylelint/ESLint presets against `popup.css`, `popup.js` and `popup.html` with `energy-dots-baseline.json`;
+  update both vendor folders from one sulimko-com commit. `core.js` (the in-page UI) is not on the language yet.
 - Release: bump `package.json`, add a `CHANGELOG.md` entry, `node build.mjs` (it stamps the version into README and
   the site page and fails without a CHANGELOG entry; `scripts/merge-gate.sh` stops /main if the stamp is not
   committed), /main, then `gh release create vX.Y.Z` from main with `dist/sulimarket.user.js`,

@@ -7,9 +7,11 @@
   "scripts": {
     "build": "node build.mjs",
     "design-live": "node --env-file-if-exists=.storybook/design-live.local.env scripts/design-live/publish.mjs",
-    "design-live:coverage": "node --env-file-if-exists=.storybook/design-live.local.env scripts/design-live/coverage.mjs"
+    "design-live:coverage": "node --env-file-if-exists=.storybook/design-live.local.env scripts/design-live/coverage.mjs",
+    "check:design": "energy-dots-check"
   },
   "devDependencies": {
+    "@energy-dots/rules": "file:./vendor/energy-dots-rules-1.41.0",
     "@storybook/html-vite": "10.6.8",
     "playwright": "1.65.1",
     "storybook": "10.6.8",

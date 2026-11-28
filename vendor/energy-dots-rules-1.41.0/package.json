@@ -1,0 +1,52 @@
+{
+  "name": "@energy-dots/rules",
+  "version": "1.41.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "energy-dots-check": "./check.mjs"
+  },
+  "exports": {
+    "./eslint": "./eslint.mjs",
+    "./stylelint": "./stylelint.mjs",
+    "./markup": "./markup.mjs"
+  },
+  "files": [
+    "check.mjs",
+    "markup.mjs",
+    "eslint.mjs",
+    "stylelint.mjs",
+    "spacing.generated.mjs",
+    "values.mjs",
+    "swiftlint.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test rules.test.mjs",
+    "test:install": "node --test install.test.mjs",
+    "test:swift": "node --test swiftlint.test.mjs"
+  },
+  "dependencies": {
+    "@typescript-eslint/parser": "8.74.0",
+    "color-name": "2.1.1",
+    "eslint": "10.15.0",
+    "eslint-plugin-better-tailwindcss": "4.11.0",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "postcss": "8.5.33",
+    "postcss-value-parser": "4.2.0",
+    "stylelint": "18.1.0",
+    "stylelint-value-no-unknown-custom-properties": "6.1.1",
+    "typescript": "6.0.3"
+  },
+  "peerDependencies": {
+    "tailwindcss": "^4.3.3"
+  },
+  "peerDependenciesMeta": {
+    "tailwindcss": {
+      "optional": true
+    }
+  }
+}

@@ -1,0 +1,2273 @@
+/* Generated from design-language/tokens.json; DO NOT EDIT. Version 1.41.0. Source SHA256 0d7ebfa062a2a9e7262c76cb2e111f7d6c4cede2e65bc076184da34942a72b3a. */
+@layer ed.base, ed.theme, ed.components;
+@layer ed.components {
+  /* Reading defaults shared by the site and portable primitives. The document supplies lang. */
+
+  /* One text rendering on all three implementations (system specimen 26.11.2026): Inter features (single-storey a,
+     round quotes and comma) as SkaiSoft NativeTypography, and the platform smoothing of a native Mac app. No
+     -webkit-font-smoothing: antialiased - it thins every stem against SkaiSoft (Sergey 26.11: "на свифте правильно"). */
+  :where(body) { text-rendering: optimizeLegibility; }
+  /* Every `font:` shorthand resets font-feature-settings to normal, so a body rule reached only body itself; important
+     keeps the features under any component shorthand. Figures use font-variant-numeric, not this property. */
+  :where(body, body *) {
+    font-feature-settings: "cv11" var(--font-inter-cv11), "ss03" var(--font-inter-ss03) !important;
+  }
+  :where([lang]) { --measure-script-cap: var(--measure-reading-chars); }
+  :where(:lang(zh, ja)) { --measure-script-cap: var(--measure-reading-cjk-chars); }
+
+  :where(h1, h2, h3, h4, h5, h6, figcaption) { text-wrap: balance; }
+  :where(p, li, dd, blockquote) { text-wrap: pretty; }
+  :where(p, li, dd, dt, th, td, figcaption, blockquote, label, h1, h2, h3, h4, h5, h6) {
+    overflow-wrap: anywhere;
+  }
+  :where(dd, dt, td, th, figcaption, label),
+  :where(:lang(de)) :where(p, li, blockquote, h1, h2, h3, h4, h5, h6) { hyphens: auto; }
+
+  /* Keep identifiers, figures and code out of automatic word breaking. */
+  :where(code, pre, kbd, samp, data, time, [translate="no"]) {
+    hyphens: manual;
+    overflow-wrap: normal;
+  }
+
+  /* Shared design primitives from the corp specimen. Load after energy-dots.css.
+     The page sets --pin-top for its chrome; set --pin-h to the sticky toolbar height (0px without one).
+     The page synchronizes .xs-hscroll with .xs-bscroll and updates the scroll/sticky state classes.
+     Правила - свод corp/teams/design/RULES.md (id в комментариях ниже); значения ролей - здесь и в tokens.json. */
+
+  :root {
+    --ink-2: var(--ink-secondary);
+    --ink-3: var(--ink-muted);
+    --sans: var(--font-sans);
+    --mono: var(--font-mono);
+    /* свод 2.1, 2.2 - corp/teams/design/RULES.md: тайминги и кривые; значения - токены языка */
+    --d-hover: 150ms;
+    --d-open: 220ms;
+    --d-close: 160ms;
+    --d-move: 220ms;
+    --ease: var(--ease-out);
+    /* свод 10.1 - corp/teams/design/RULES.md: --data-w секции - ступень 760px, 960px, 1200px или 1440px. */
+    --data-w: 1200px;
+    --gutter: 32px;
+    /* свод 4.2, 4.1 (S1/T7): высота закрепа считается скриптом (ResizeObserver) - top шапки таблицы = она.
+       По умолчанию 0: страница без полосы-закрепа держит шапку таблицы у верха окна (до 1.23.3 стояло 96 - высота полосы
+       образца corp, и на любой другой странице шапка отрывалась на 96 px внутрь таблицы; Сергей 26.11: "закреп уродливый"). */
+    --pin-top: 0px;
+    --pin-h: 0px;
+    --row: var(--row-h-regular);
+    --head: var(--table-header-h);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root { --d-open: 0ms; --d-close: 0ms; --d-move: 0ms; }
+  }
+
+  /* 1.6: Theme colours commit together, including generated content and native controls. */
+  :is(:root[data-theme-switching], :root[data-theme-switching] *),
+  :is(:root[data-theme-switching], :root[data-theme-switching] *)::before,
+  :is(:root[data-theme-switching], :root[data-theme-switching] *)::after,
+  :root[data-theme-switching] ::backdrop,
+  :root[data-theme-switching] ::file-selector-button,
+  :root[data-theme-switching] ::marker,
+  :root[data-theme-switching] ::placeholder { transition: none !important; }
+  :root[data-theme-switching] ::details-content { transition: none !important; }
+
+  /* Defaults scoped to primitive markup so it works with or without the specimen shell. */
+  :where(.frame, .frame *, .disc, .disc *, .list, .list *, .lrow, .lrow *) { box-sizing: border-box; }
+  button:where(.disc-head, .lrow, .sort) {
+    font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer;
+  }
+  :where(ul.list, ol.list, ul.disc-list, ol.disc-list) { list-style: none; margin: 0; padding: 0; }
+
+  .num { font-family: var(--mono); font-stretch: 87.5%; font-variant-numeric: tabular-nums; } /* свод 6.3, 9.5 (T5, F1): табличные цифры, моно - только числа в колонках */
+  .tnum { font-variant-numeric: tabular-nums; }                                                 /* свод 6.3 (T5) */
+  tr.grp .num { font-family: var(--sans); font-stretch: normal; }
+
+  /* свод 10.1, 10.2 - corp/teams/design/RULES.md: колонка раздела и малые блоки (W1, W2). */
+  .w-read {                                       /* свод 10.3 (CRAFT W4): текст для чтения - колонка 760 */
+    inline-size: min(var(--measure), var(--measure-script-cap, var(--measure-reading-chars)), 100% - 2 * var(--gutter));
+    margin-inline: auto;
+  }
+  .w-data {                                       /* свод 10.1 (W1): таблица с вкладками и фильтрами - своя ступень, та же ось */
+    width: min(var(--data-w), 100% - 2 * var(--gutter)); margin-inline: auto;
+  }
+  /* свод 10.2 (W2): малые блоки в ряд, зазор 32; число колонок - от ширины колонки, не окна. */
+  .row-small { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 32px; align-items: start; }
+  .row-small > .section { margin-top: 0; min-width: 0; }
+
+  /* 5.1–5.2: One viewport frame. Use a head and a body (tabindex="0", with an accessible name). */
+  :root:has(.page-frame),
+  body:has(.page-frame) { overflow: hidden; }
+
+  .page-frame {
+    --page-frame-gap: var(--card-gap);
+    --page-frame-radius: var(--radius-l);
+    --page-frame-fade: var(--sp-3);
+    position: fixed;
+    inset-block-start: var(--page-frame-gap);
+    inset-inline: var(--page-frame-gap);
+    box-sizing: border-box;
+    block-size: calc(100dvh - 2 * var(--page-frame-gap));
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: clip;
+    border: 1px solid var(--line);
+    border-radius: var(--page-frame-radius);
+    background: var(--body);
+  }
+
+  .page-frame-head { background: var(--body); }
+
+  .page-frame-body {
+    /* Any sticky children start at this scrollport, below the frame head. */
+    --pin-top: 0px;
+    --pin-h: 0px;
+    min-inline-size: 0;
+    overflow: auto;
+    scroll-padding-block: var(--page-frame-fade);
+  }
+
+  /* свод 4.6: Fades follow the scroll position with no time-based motion. */
+  @supports (animation-timeline: scroll(nearest block)) {
+    .page-frame-body::before,
+    .page-frame-body::after {
+      content: "";
+      display: block;
+      position: sticky;
+      z-index: 10; /* Below a sticky table head (11), above scrolling rows. */
+      block-size: var(--page-frame-fade);
+      pointer-events: none;
+      opacity: 0;
+      animation: ed-scroll-edge 1ms linear both;
+      animation-timeline: scroll(nearest block);
+    }
+
+    .page-frame-body::before {
+      inset-block-start: 0;
+      margin-block-end: calc(-1 * var(--page-frame-fade));
+      background: linear-gradient(var(--body), transparent);
+      animation-range: 0px min(100%, var(--page-frame-fade));
+    }
+
+    .page-frame-body::after {
+      inset-block-end: 0;
+      margin-block-start: calc(-1 * var(--page-frame-fade));
+      background: linear-gradient(transparent, var(--body));
+      animation-direction: reverse;
+      animation-range: max(0%, calc(100% - var(--page-frame-fade))) 100%;
+    }
+
+    /* Keep the scrollport's 2px inset focus ring clear of the fades. */
+    :where(:root:not([data-focus-input="pointer"])) .page-frame-body:focus:where(:not([data-scroll-focus-hidden]))::before { clip-path: inset(2px 2px 0); }
+    :where(:root:not([data-focus-input="pointer"])) .page-frame-body:focus:where(:not([data-scroll-focus-hidden]))::after { clip-path: inset(0 2px 2px); }
+
+  }
+
+  /* ───── свод 4.2 (S1): закреп - один блок (вкладки + фильтры) ───── */
+  .pin {
+    position: sticky; inset-block-start: var(--pin-top); z-index: 20;            /* выше шапок внутренних блоков (11-12): они уходят ПОД вкладки */
+    background: var(--body);                        /* свод 4.2: непрозрачный */
+    margin-top: 24px;                               /* P2: шапка - 24 до первого раздела */
+  }
+  .pin::after {                                     /* свод 4.6 (S2): мягкий уход 12 под закрепом */
+    content: ""; position: absolute; inset-inline: 0; inset-block-start: 100%; height: 12px;
+    background: linear-gradient(var(--body), transparent);
+    pointer-events: none; opacity: 0;
+    transition: opacity var(--d-hover) var(--ease);
+  }
+  .pin.is-stuck::after { opacity: 1; }
+
+  /* ───── свод 13.2, 13.3, 2.1 (D): раскрытие - один элемент ───── */
+  .disc-head {
+    height: var(--row); display: flex; align-items: center; gap: 8px;
+    padding-inline: 8px; margin-inline: -8px; width: calc(100% + 16px);   /* L1: плашка выходит на 8 с обеих сторон */
+    border-radius: 6px; text-align: start;
+    transition: background-color var(--d-hover) var(--ease);
+  }
+  @media (hover: hover) { .disc-head:hover { background: var(--pad-hover); } }                     /* свод 13.2 (D1): щёлкается вся строка */
+  .disc-head .chev { width: 16px; height: 16px; flex: none; color: var(--ink-2);
+    transition: transform var(--d-hover) var(--ease); }                  /* свод 2.1 (D3): стрелка 90° за 150 */
+  .disc[data-open="true"] > .disc-head .chev { transform: rotate(90deg); }
+  .disc-head .name { font: 600 15px/22px var(--sans); white-space: nowrap; }
+  .disc-head .cnt { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+  .disc-body {                                                           /* M6: grid 0fr -> 1fr - основной приём */
+    display: grid; grid-template-rows: 0fr; visibility: hidden;
+    transition: grid-template-rows var(--d-close) var(--ease-exit),
+                visibility 0s linear var(--d-close);                     /* свод 2.1 (D3): закрытие 160, кривая ухода */
+  }
+  .disc[data-open="true"] > .disc-body {
+    grid-template-rows: 1fr; visibility: visible;
+    transition: grid-template-rows var(--d-open) var(--ease), visibility 0s;  /* свод 2.1 (D3): открытие 220 */
+  }
+  .disc-body > div { min-height: 0; overflow-y: clip; }
+  .disc-list { padding-inline-start: 24px; padding-bottom: 8px; }                /* свод 13.3 (D2): край содержимого = край имени; арифметика: вынос -8, отступ 8, стрелка 16, зазор 8 -> +24 от колонки */
+  .disc-list li { height: var(--row); display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); }
+  .disc-list li:last-child { border-bottom: 0; }
+  .disc-list .what { white-space: nowrap; }
+  .disc-list .why { color: var(--ink-2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .disc-list .when { color: var(--ink-3); white-space: nowrap; }         /* L4: дата справа в той же строке */
+
+  /* ───────────── L: список с плашками ───────────── */
+  .list li { border-bottom: 1px solid var(--line); }
+  .list li:last-child { border-bottom: 0; }
+  .lrow {
+    width: calc(100% + 16px); margin-inline: -8px;             /* L1: вынос 8 поровну с обеих сторон */
+    padding-inline: 8px;                                       /* L2: 8 = 8; текст на оси заголовка */
+    height: var(--row); display: flex; align-items: center; gap: 8px; border-radius: 6px; text-align: start;
+    transition: background-color var(--d-hover) var(--ease);
+  }
+  @media (hover: hover) { .lrow:hover { background: var(--pad-hover); } }
+  .lrow[aria-current="true"] { background: var(--pad-pressed); }
+  /* свод 1.14, 8.3 (Clientomic C11, 1.16.0): наведение на выбранное - свой шаг поверх плашки "нажато", а не та же плашка */
+  @media (hover: hover) { .lrow[aria-current="true"]:hover { background: linear-gradient(var(--pad-hover), var(--pad-hover)), var(--pad-pressed); } }
+  .lrow .nm { white-space: nowrap; }
+  .lrow .dom { color: var(--ink-2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lrow .dt { color: var(--ink-3); white-space: nowrap; margin-inline-start: 16px; }      /* L4: дата справа, не ближе 24 к соседу */
+  .list li.none { height: var(--row); display: flex; align-items: center; color: var(--ink-3); border-bottom: 0; }
+
+  /* свод 8.1, 8.2 (L5), 4.13 (S5): keyboard focus and scrollbars. */
+  :focus-visible,
+  :where(:root[data-focus-input="keyboard"]) :focus { outline: 2px solid var(--ed-focus-color, var(--ink)); outline-offset: -2px; }  /* свод 8.1, 8.2 (L5, спор 22): кольцо 2 ink внутри элемента - его не режет лента вкладок, рамка таблицы, край карточки */
+  /* Suppress the native heuristic and consumer outlines after pointer input. */
+  :root[data-focus-input="pointer"] :focus,
+  [tabindex="-1"]:focus,
+  [data-scroll-focus-hidden]:focus { outline: none !important; }
+  /* offset -2 при толщине 2: кольцо занимает внешние 2 px самого элемента; у поля оно ложится на рамку 1 и не выходит наружу */
+
+  /* ───── свод 4.13, 4.14 (S5): полоса прокрутки ─────
+     Chrome и Safari - ::-webkit-scrollbar (жёлоб --scrollbar-track-width 10: ползунок --scrollbar-thumb-width 6 в покое,
+     --scrollbar-thumb-hover-width 8 под указателем; рамка прозрачная, (жёлоб - ползунок) / 2);
+     Firefox - scrollbar-width: thin (точной ширины у Firefox нет: значения только auto | thin | none). В Chrome 121+ scrollbar-color отключает ::-webkit-scrollbar, поэтому стандартные
+     свойства - только там, где псевдоэлементов нет. Ползунок виден под указателем и при прокрутке (.is-scrolling). */
+  :is(html, .card, .xs-bscroll, .ed-table-scroll, .ed-table-column-list)::-webkit-scrollbar { width: var(--scrollbar-track-width); height: var(--scrollbar-track-width); background: transparent; }
+  :is(html, .card, .xs-bscroll, .ed-table-scroll, .ed-table-column-list)::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+  :is(html, .card, .xs-bscroll, .ed-table-scroll, .ed-table-column-list)::-webkit-scrollbar-track { background: transparent; }
+  :is(html, .card, .xs-bscroll, .ed-table-scroll, .ed-table-column-list)::-webkit-scrollbar-corner { background: transparent; }
+  :is(html, .card, .xs-bscroll, .ed-table-scroll, .ed-table-column-list)::-webkit-scrollbar-thumb {
+    background-color: transparent; background-clip: padding-box;
+    border: calc((var(--scrollbar-track-width) - var(--scrollbar-thumb-width)) / 2) solid transparent;
+    border-radius: 999px; min-height: 32px; min-width: 32px;
+  }
+  :is(html, .card, .xs-bscroll, .ed-table-scroll, .ed-table-column-list).is-scrolling::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); }
+  @media (hover: hover) { :is(html, .card, .xs-bscroll, .ed-table-scroll, .ed-table-column-list):hover::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); } }
+  @media (hover: hover) { :is(html, .card, .xs-bscroll, .ed-table-scroll, .ed-table-column-list)::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); border-width: calc((var(--scrollbar-track-width) - var(--scrollbar-thumb-hover-width)) / 2); } }
+  .card::-webkit-scrollbar-track:vertical { margin-block: 10px; }             /* не заходит в скруглённые углы карточки */
+  /* S5: широкая таблица прокручивается только вбок (шапка - отдельной коробкой над телом), дорожка - под строками */
+  .xs-bscroll::-webkit-scrollbar-track:horizontal { margin-inline: 4px; }
+  @supports not selector(::-webkit-scrollbar) {
+    html, .card, .xs-bscroll, .ed-table-scroll, .ed-table-column-list { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+  }
+
+  /* ───── свод 7.1, 7.5, 7.6 (решение data-state-skeleton-motion, 1.15.0): заглушка ─────
+     Серым - только данные внутри настоящего каркаса (7.3). Полоса стоит спокойно: без перелива, мерцания и каскада.
+     .skel-swap кладёт заглушку и содержимое в одну клетку сетки: геометрия не меняется, заглушка растворяется за 150.
+     Готовность - класс .is-ready на .skel-swap; при "уменьшить движение" смена мгновенная (свод 2.6). */
+  .skel { display: block; background: var(--fill); border-radius: var(--radius-s); }
+  .skel-swap { display: grid; }
+  .skel-swap > * { grid-area: 1 / 1; min-width: 0; }
+  .skel-swap > .skel-ph { z-index: 1; pointer-events: none; transition: opacity var(--t-exit) var(--ease-exit); }
+  .skel-swap.is-ready > .skel-ph { opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { .skel-swap > .skel-ph { transition: none; } }
+
+  /* ───── 1.16.0: опыт Clientomic (corp/teams/design/research/2026-11-25-clientomic) ───── */
+  /* свод 1.12, 8.3, 1.14 (Clientomic C23, A24): чип фильтра. Выкл - тихий контур line.control и ink.2; вкл - плашка
+     "нажато", рамка line.strong и ink - три признака, не одна серая заливка. Наведение на включённый - шаг поверх плашки. */
+  button:where(.chip, .tile) { font: inherit; color: inherit; background: none; margin: 0; cursor: pointer; text-align: start; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px;
+    border: 1px solid var(--line-control); border-radius: var(--radius-s);
+    background: transparent; color: var(--ink-2); font: 500 13px/18px var(--sans); white-space: nowrap; cursor: pointer;
+    transition: background-color var(--d-hover) var(--ease), border-color var(--d-hover) var(--ease), color var(--d-hover) var(--ease);
+  }
+  .chip[aria-pressed="true"] { background: var(--pad-pressed); border-color: var(--line-strong); color: var(--ink); }
+  @media (hover: hover) {
+    .chip:hover { background: var(--pad-hover); color: var(--ink); transition-duration: 0s; }
+    .chip[aria-pressed="true"]:hover { background: linear-gradient(var(--pad-hover), var(--pad-hover)), var(--pad-pressed); }
+  }
+  @media (pointer: coarse) {
+    .chip {
+      min-block-size: var(--target-touch);
+      min-inline-size: var(--target-touch);
+    }
+  }
+
+  /* свод 5.20, 1.3, 1.4 (Clientomic B110, B111): плитка. Нажимаемая (ссылка, кнопка, data-clickable) отвечает только рамкой -
+     свой ярус line.hover (скачок светлоты 0,18-0,19 от line); без тени, сдвига, масштаба и смены фона. Плитка, которая уже
+     показывает всё, не нажимается: без руки и наведения. */
+  .tile { display: block; border: 1px solid var(--line); border-radius: var(--radius-l); background: var(--body); color: inherit; text-decoration: none; }
+  :is(a.tile, button.tile, .tile[data-clickable]) { cursor: pointer; transition: border-color var(--d-hover) var(--ease); }
+  @media (hover: hover) { :is(a.tile, button.tile, .tile[data-clickable]):hover { border-color: var(--line-hover); transition-duration: 0s; } }
+
+  /* свод 2.8 (Clientomic C76; Сергей 16.10: "сливается", "почему такое белое"): подсказка - поверхность всплывающего с линией
+     и тенью, без стрелки, не инверсия; текст 12, отступы 8 / 4, ширина до 280. Время - tooltip.open / skip, уход - motion.exit. */
+  .tip {
+    max-width: var(--tooltip-max-width); padding: var(--tooltip-padding-y) var(--tooltip-padding-x);
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    box-shadow: var(--shadow-popover); color: var(--ink); font: 400 12px/18px var(--sans);
+  }
+
+  /* свод 12.17 (Clientomic C25, A30): знак завершения - круг 16 (сделано, опубликовано - факт), отдельный от квадратного
+     чекбокса выбора 14 / радиус 3. Пусто - кольцо 1,5 line.field; сделано - плита ink с галочкой body; частично - кольцо
+     warning. The button around the glyph supplies the pointer or touch target. */
+  .done-mark {
+    display: inline-grid; place-items: center; flex: none;
+    width: var(--checkbox-completion-size); height: var(--checkbox-completion-size); border-radius: 50%;
+    border: var(--checkbox-completion-ring) solid var(--line-field); background: transparent; color: var(--body);
+  }
+  .done-mark > svg { width: 10px; height: 10px; visibility: hidden; }
+  .done-mark[aria-checked="true"] { background: var(--ink); border-color: var(--ink); }
+  .done-mark[aria-checked="true"] > svg { visibility: visible; }
+  .done-mark[aria-checked="mixed"] { border-color: var(--warning); }
+
+  /* свод 10.12, 2.3 (Clientomic B136, Сергей одобрил 20.04.2026): разделитель панелей. Покой - линия 1 line без ручки; под
+     указателем, в фокусе и при перетаскивании (.is-dragging) - линия 2 line.strong, её рисует ::before - панели не двигаются;
+     зона захвата 32 по центру линии. Пилюля свёртки 24 (зона 40) в середине появляется только прозрачностью, рамка пилюли
+     под указателем - line.hover. Свёрнутая панель держит кнопку раскрытия всегда видимой, 8 внутри края (.divider-expand). */
+  .divider { position: relative; flex: none; align-self: stretch; width: var(--divider-line); background: var(--line); cursor: col-resize; touch-action: none; }
+  .divider::after { content: ""; position: absolute; inset-block: 0; inset-inline-start: calc((var(--divider-line) - var(--divider-hit)) / 2); inline-size: var(--divider-hit); }
+  .divider::before {
+    content: ""; position: absolute; inset-block: 0; inset-inline-start: calc((var(--divider-line) - var(--divider-hover-line)) / 2); z-index: 1; inline-size: var(--divider-hover-line);
+    background: transparent; pointer-events: none; transition: background-color var(--d-hover) var(--ease);
+  }
+  :where(:root:not([data-focus-input="pointer"])) .divider:focus-visible::before,
+  :where(:root[data-focus-input="keyboard"]) .divider:focus::before,
+  .divider.is-dragging::before { background: var(--line-strong); }
+  .divider-pill {
+    position: absolute; inset-block-start: 50%; inset-inline-start: calc((var(--divider-line) - var(--divider-pill-hit)) / 2); z-index: 2;
+    inline-size: var(--divider-pill-hit); block-size: var(--divider-pill-hit); transform: translateY(-50%); display: grid; place-items: center;
+    opacity: 0; pointer-events: none; transition: opacity var(--d-hover) var(--ease);
+  }
+  .divider-pill > button {
+    width: var(--divider-pill); height: var(--divider-pill); padding: 0; display: grid; place-items: center;
+    border: 1px solid var(--line-control); border-radius: 999px; background: var(--body); color: var(--ink-2); cursor: pointer;
+  }
+  .divider-pill:focus-within { opacity: 1; pointer-events: auto; }
+  @media (hover: hover) {
+    .divider:hover::before { background: var(--line-strong); transition-duration: 0s; }
+    .divider:hover .divider-pill { opacity: 1; pointer-events: auto; transition-duration: 0s; }
+    .divider-pill > button:hover { border-color: var(--line-hover); color: var(--ink); }
+  }
+  .divider-expand { position: absolute; inset-block-start: 50%; inset-inline-start: var(--divider-expand-inset); z-index: 2; transform: translateY(-50%); }
+  @media (pointer: coarse) {
+    .divider-pill {
+      --divider-pill-hit: var(--target-touch);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .divider-pill > button::before { content: ""; position: absolute; inset: 0; }
+    button.divider-expand {
+      min-block-size: var(--target-touch);
+      min-inline-size: var(--target-touch);
+    }
+  }
+
+  td.q { color: var(--ink-2); }                        /* второстепенные значения строки тише имени и числа */
+  /* ───────────── T: таблица в рамке ───────────── */
+  .frame {                                           /* свод 6.1 (T1): радиус 10, содержимое обрезано; линию рамки рисуют крайние клетки */
+    border-radius: 10px;                             /* (так закреплённая шапка уносит с собой скругление верхних углов) */
+    overflow: clip;                                  /* T8: только обрезает - clip, не hidden: закреп шапки держится за страницу */
+  }
+  /* свод 4.1, 4.10, 4.11 (T7, T8, раунд 5): широкая таблица - шапка отдельной коробкой, липнет к странице под вкладками; тело прокручивается
+     только вбок, шапка едет вбок вместе с ним (синхронная прокрутка - приём AG Grid, TanStack Table). Так шапка видна,
+     пока видна хоть одна строка: липкая th внутри блока с overflow-x держится за этот блок, а не за страницу.
+     Рамку рисуют шапка (верх, бока, скругление 10) и тело (бока, низ); маска справа - 56 по умолчанию (свод 4.10, спор 19; у рейтинга ЭА принят вариант 32 - остаётся вариантом примитива) - на внутренних узлах, не на рамке. */
+  .frame.xs { border-radius: 0; overflow: visible; }
+  /* свод 4.1 (T7; Сергей 20.11: "линии идут длиннее чем скругление углов... видны данные таблиц в тех же углах"): закреплённая шапка -
+     прямоугольная подложка цвета поверхности, на ней скруглённая рамка. За скруглением угла - поверхность: ни строки,
+     ни боковые линии тела в углах не видны, линия рамки кончается там, где начинается скругление. */
+  .xs-head {
+    position: sticky; inset-block-start: calc(var(--pin-top) + var(--pin-h)); z-index: 11;   /* свод 4.1, 4.2 (T7): вплотную под закрепом, под ним (20) */
+    background: var(--body); padding: 1px 1px 0;
+  }
+  .xs-head::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: var(--fill); border: 1px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0;
+  }
+  .xs-hscroll { position: relative; overflow: hidden; border-radius: 9px 9px 0 0; }
+  .xs-body { border: 1px solid var(--line); border-top: 0; border-radius: 0 0 10px 10px; overflow: clip; }
+  .xs-bscroll { overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; }
+  .frame.xs.more-right :is(.xs-hscroll, .xs-bscroll) {                 /* свод 4.10 (T8): маска 56 справа, пока там есть колонки: буква не режется краем */
+    mask-image: linear-gradient(var(--table-scroll-end, to right), var(--ink) calc(100% - 56px), transparent);
+  }
+  .frame.xs:dir(rtl) { --table-scroll-end: to left; --table-pin-shadow-x: 1px; }
+  .frame.xs thead th { position: static; inset-block-start: auto; background: var(--fill); }
+  .frame.xs thead th::before { content: none; }
+  .frame.xs tr > :first-child, .frame.xs tr > :last-child { border-inline: 0; }
+  .frame.xs tbody tr:last-child > * { border-bottom: 0; }
+  .frame.xs .pin-col tr > :first-child { position: sticky; inset-inline-start: 0; z-index: 1; }
+  .frame.xs .pin-col thead tr > :first-child { background: var(--fill); }
+  .frame.xs.scrolled-x .pin-col tr > :first-child { box-shadow: inset var(--table-pin-shadow-x, -1px) 0 0 var(--line-strong); }  /* свод 4.10: шов - только когда уехали */
+  .xs-head::after {                                                     /* свод 4.6 (S2): мягкий уход 12 под закреплённой шапкой - только над строками: */
+    content: ""; position: absolute; inset-inline: 1px; inset-block-start: 100%; height: 12px;   /* боковые линии рамки фейд не закрывает */
+    background: linear-gradient(var(--body), transparent); pointer-events: none; opacity: 0;
+    transition: opacity var(--d-hover) var(--ease);
+  }
+  .frame.xs.is-stuck .xs-head::after { opacity: 1; }
+  .frame.xs.is-stuck.grp-under .xs-head::after { opacity: 0; }   /* S2: над строкой группы фейд не рисует полосу (base.js stuck) */
+  table { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }  /* T12, свод 6.10: фиксированная раскладка - ширины колонок не дёргаются при сортировке, фильтре, на вкладках */
+  th, td {
+    height: var(--row); padding: 0 12px;            /* T3: 12 по горизонтали */
+    text-align: start; white-space: nowrap;          /* T6: одна запись - одна строка */
+    border-bottom: 1px solid var(--line);
+    background: var(--body);
+    transition: background-color var(--d-hover) var(--ease);   /* T4: подсветка за 150 */
+  }
+  th:first-child, td:first-child { padding-inline-start: 16px; }     /* T3: у первой 16 */
+  th:last-child, td:last-child { padding-inline-end: 16px; }      /* T3: у последней 16 */
+  thead th {
+    height: var(--head); background: var(--fill);   /* T1: шапка на fill; T7: фон непрозрачный */
+    font: 500 12px/18px var(--sans); color: var(--ink-3);
+    position: sticky; inset-block-start: calc(var(--pin-top) + var(--pin-h)); z-index: 11;  /* T7: вплотную под закрепом */
+  }
+  /* свод 6.1 (T1): рамка клетками - бока у крайних, низ у последней строки, верх и скругление у шапки (::before) */
+  .frame tr > :first-child { border-inline-start: 1px solid var(--line); }
+  .frame tr > :last-child { border-inline-end: 1px solid var(--line); }
+  .frame tbody tr:last-child > :first-child { border-end-start-radius: 10px; }
+  .frame tbody tr:last-child > :last-child { border-end-end-radius: 10px; }
+  .frame thead th { background: var(--body); }   /* под скруглением - цвет страницы, щель не просвечивает */
+  .frame thead th::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background: var(--fill); border-top: 1px solid var(--line);
+  }
+  .frame thead tr > th:first-child { border-inline-start: 1px solid transparent; }   /* тот же 1 px, что у клеток тела: текст на одной оси */
+  .frame thead tr > th:last-child { border-inline-end: 1px solid transparent; }
+  .frame thead th:first-child::before { inset-inline-start: -1px; border-inline-start: 1px solid var(--line); border-start-start-radius: 10px; }
+  .frame thead th:last-child::before { inset-inline-end: -1px; border-inline-end: 1px solid var(--line); border-start-end-radius: 10px; }
+  /* свод 6.2, 6.3 (T2; слово Сергея: "цифры по левому краю") */
+  .r { text-align: end; }
+  td.r, td.n { font: 500 13px/20px var(--mono); font-stretch: 87.5%; font-variant-numeric: tabular-nums; } /* свод 6.3, 9.5 (T5, F1) */
+  td.none { font-family: var(--sans); font-weight: 400; color: var(--ink-3); }   /* свод 6.14 (T10): тихое "—" в плотной таблице, причина при наведении */
+  td { overflow: hidden; text-overflow: ellipsis; }             /* свод 6.8 (T6): длинное - многоточием, полный текст в title; "имя берёт остаток" снято - спор 2, свод 6.6: имя и первое число - соседи, остаток - пустым хвостом */
+  th.r .sort { position: relative; }
+  th.r .sort svg { position: absolute; inset-inline-start: 100%; margin-inline-start: 4px; }     /* T11: стрелка после подписи; подпись держит правый край чисел */
+
+  tr.grp > td { background: var(--fill); font-weight: 600; color: var(--ink); }
+  @media (hover: hover) { tbody tr:not(.grp):hover > td { background: var(--fill-hover); } }   /* T4: на всю ширину рамки */
+  @media (hover: hover) { tbody tr.empty:hover > td { background-color: var(--body); } }
+  tr.grp > th {                                               /* T9: группа - строка на fill, 13/600 ink */
+    background: var(--fill); font: 600 13px/20px var(--sans); color: var(--ink); height: var(--row);
+    position: static;
+  }
+  tr.grp > th .in { position: sticky; inset-inline-start: 16px; display: inline-flex; gap: 8px; }
+  tr.grp > th .num { font-weight: 400; font-size: 12px; color: var(--ink-3); }
+  /* T11: сортировка; стрелка 14 - после имени колонки везде */
+  .sort { display: inline-flex; align-items: center; gap: 4px; height: var(--head); color: inherit; font: inherit; white-space: nowrap; }
+  .sort svg { width: 14px; height: 14px; opacity: 0; transition: opacity var(--d-hover) var(--ease), transform var(--d-hover) var(--ease); }
+  th[aria-sort] .sort svg { opacity: 1; }
+  th[aria-sort="ascending"] .sort svg { transform: rotate(180deg); }
+  @media (hover: hover) { .sort:hover { color: var(--ink); } }
+  .sort:focus-visible { outline-offset: -2px; border-radius: 6px; }   /* L5: рамка таблицы режет внешнее кольцо */
+  /* свод 4.6 (S2) под закреплённой шапкой таблицы: фейд 12, только пока шапка стоит */
+  thead th::after {
+    content: ""; position: absolute; inset-inline: 0; inset-block-start: calc(100% + 1px); height: 12px;
+    background: linear-gradient(var(--body), transparent); pointer-events: none; opacity: 0;
+    transition: opacity var(--d-hover) var(--ease);
+  }
+  table.is-stuck thead th::after { opacity: 1; }
+  .frame.small { width: max-content; min-width: min(280px, 100%); max-width: min(560px, 100%); }  /* свод 6.7 (W2): малый блок - по содержимому */
+  .frame.small table { table-layout: auto; }                    /* свод 6.6: статичная таблица - ширины по содержимому, остаток - пустым хвостом (спор 2) */
+  /* FLIP-перестановка строк (M1, M2): только transform */
+  tr.moving { transition: transform var(--d-move) var(--ease); }
+
+  /* M9: immediate hover, animated return. */
+  @media (hover: hover) {
+    :is(.lrow, .disc-head, .sort):hover, tbody tr:hover > td { transition-duration: 0s; }
+  }
+
+  @media (max-width: 1023px) {
+    :root { --gutter: 16px; }
+    /* The language's compact shell is full bleed, including phones <= 640px (ЗАКОН 3.1, RULES 5.3).
+       Below 1024 the document scrolls, not a box inside the frame: phone browser bars collapse and native momentum stays
+       (corp RULES.md, dispute 50, 24.11.2026). The head stays pinned at the top of the viewport. */
+    :root:has(.page-frame),
+    body:has(.page-frame) { overflow: visible; }
+    .page-frame {
+      --page-frame-gap: 0px;
+      --page-frame-radius: 0px;
+      position: static;
+      block-size: auto;
+      min-block-size: 100dvh;
+      display: block;
+      overflow: visible;
+      border: 0;
+    }
+    .page-frame-head { position: sticky; inset-block-start: 0; z-index: 12; }
+    .page-frame-body { overflow: visible; }
+    .page-frame-body::before,
+    .page-frame-body::after { content: none; }
+  }
+
+  @media (max-width: 767px) {
+    .row-small { gap: 24px; }
+  }
+  @media (max-width: 767px), (pointer: coarse) {
+    :root { --row: var(--row-h-relaxed); }
+  }
+
+  /* 5.7: action menus and select lists share the floating surface and its inset. */
+  .energy-menu-surface {
+    border-radius: var(--menu-radius);
+    padding: var(--menu-inset);
+    box-shadow: var(--shadow-popover);
+  }
+  .energy-menu-surface[data-menu="actions"] {
+    min-inline-size: min(var(--menu-min-width), var(--menu-available-width, 100%));
+  }
+  .energy-menu-item { border-radius: var(--menu-item-radius); }
+
+  /* Start the table's own scrollbar below its fixed heading. */
+  .ed-table-scroll::-webkit-scrollbar-track:vertical { margin-block: var(--ed-table-head) var(--ed-table-foot); }
+  .ed-table-column-list::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); }
+
+  /* An explicit shared fade overlay replaces the legacy page-frame edges. */
+  .page-frame-body[data-ed-fade-scrollport]::before,
+  .page-frame-body[data-ed-fade-scrollport]::after { content: none; }
+
+  /* Rules 3.6, 4.13, 5.11, 5.17, 8.2, 8.3, 8.7 and 8.13. The select keeps its native form behavior. */
+  select.ed-select {
+    box-sizing: border-box;
+    min-block-size: var(--menu-row);
+    max-inline-size: 100%;
+    padding-block: 0;
+    padding-inline: var(--sp-2);
+    border: var(--hairline) solid var(--line-field);
+    border-radius: var(--radius);
+    background-color: var(--fill);
+    color: var(--ink);
+    font: var(--text-label-13--font-weight) var(--text-label-13)/var(--text-label-13--line-height) var(--font-sans);
+    cursor: pointer;
+  }
+
+  :where(:root:not([data-focus-input="pointer"])) select.ed-select:focus-visible {
+    outline: var(--focus-width) solid var(--ink);
+    outline-offset: calc(-1 * var(--focus-width));
+  }
+
+  select.ed-select:disabled {
+    border-color: var(--disabled-line);
+    background-color: var(--disabled-fill);
+    color: var(--disabled-ink);
+    cursor: default;
+  }
+
+  @media (hover: hover) {
+    select.ed-select:enabled:hover {
+      border-color: var(--ink-secondary);
+    }
+  }
+
+  @media (pointer: coarse) {
+    select.ed-select {
+      min-block-size: var(--target-touch);
+      min-inline-size: var(--target-touch);
+      font-size: var(--field-touch-font-size);
+    }
+  }
+
+  @supports (appearance: base-select) and selector(::picker(select)) {
+    @media not (pointer: coarse) {
+      select.ed-select,
+      select.ed-select::picker(select) {
+        appearance: base-select;
+      }
+
+      select.ed-select {
+        --select-picker-width: min(var(--select-picker-max-width), 100vi - 2 * var(--sp-4));
+        display: inline-grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: var(--sp-2);
+        min-inline-size: 0;
+        max-inline-size: min(100%, var(--select-picker-width));
+      }
+
+      select.ed-select > button:first-child {
+        display: block;
+        min-inline-size: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-align: start;
+      }
+
+      select.ed-select selectedcontent {
+        display: block;
+        min-inline-size: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      select.ed-select::picker-icon {
+        inline-size: var(--sp-2);
+        block-size: calc(var(--sp-2) - var(--hairline) * 2);
+        margin: 0;
+        background-color: var(--ink-secondary);
+        clip-path: polygon(0 0, 50% 70%, 100% 0, 100% 28%, 50% 100%, 0 28%);
+        content: "";
+      }
+
+      /* Percentages resolve against the space on the chosen side of the browser's implicit anchor. */
+      select.ed-select::picker(select) {
+        box-sizing: border-box;
+        min-inline-size: anchor-size(self-inline);
+        max-inline-size: var(--select-picker-width);
+        --select-row-step: calc(var(--menu-row) + var(--menu-inset));
+        --select-half-row: calc(var(--menu-row) / 2 + var(--menu-inset) + 2 * var(--hairline));
+        --select-available-height: calc(100% - 2 * var(--sp-1));
+        max-block-size: min(
+          var(--select-available-height),
+          calc(8 * var(--select-row-step) + var(--select-half-row))
+        );
+        /* Keep the half-row cue when the viewport fits fewer than eight and a half rows. */
+        @supports (height: round(down, 10px, 1px)) {
+          max-block-size: min(
+            var(--select-available-height),
+            calc(8 * var(--select-row-step) + var(--select-half-row)),
+            calc(round(down, max(0px, var(--select-available-height) - var(--select-half-row)), var(--select-row-step)) + var(--select-half-row))
+          );
+        }
+        margin-block: var(--sp-1);
+        padding: var(--menu-inset);
+        overflow: hidden auto;
+        overscroll-behavior: contain;
+        border: var(--hairline) solid var(--line);
+        border-radius: var(--menu-radius);
+        background-color: var(--surface);
+        color: var(--ink);
+        box-shadow: var(--shadow-popover);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--t-exit) var(--ease-exit),
+          display var(--t-exit) allow-discrete, overlay var(--t-exit) allow-discrete;
+      }
+
+      select.ed-select:open::picker(select) {
+        opacity: 1;
+        pointer-events: auto;
+        transition-duration: var(--t-panel);
+        transition-timing-function: var(--ease-out);
+      }
+
+      /* Pointer events in an iframe cannot light-dismiss a picker in the parent document. */
+      :root:has(select.ed-select:open) iframe {
+        pointer-events: none;
+      }
+
+      /* The picker scrollbar: the standard properties only. A pseudo-element after ::picker(select) (the webkit
+         scrollbar with its 10/6/8 widths, 1.18.0) does not parse in Lightning CSS, the CSS engine of Next and Turbopack,
+         so the sulimko.com dev server stopped on globals.css (found 27.11.2026, 1.26.0). */
+      select.ed-select::picker(select) {
+        scrollbar-width: thin;
+        scrollbar-color: var(--scroll-thumb) transparent;
+      }
+
+      @starting-style {
+        select.ed-select:open::picker(select) {
+          opacity: 0;
+        }
+      }
+
+      select.ed-select optgroup {
+        color: var(--ink-secondary);
+        font: var(--text-label-12--font-weight) var(--text-label-12)/calc(var(--menu-row) + var(--menu-inset)) var(--font-sans);
+      }
+
+      select.ed-select option {
+        box-sizing: border-box;
+        position: relative;
+        display: block;
+        min-block-size: var(--menu-row);
+        margin-block-end: var(--menu-inset);
+        /* Match the native optgroup caption's 0.5em inset. */
+        --select-option-inset: calc(var(--text-label-12) / 2);
+        padding-inline: var(--select-option-inset) calc(var(--select-option-inset) + 2 * var(--sp-2));
+        border-radius: var(--menu-item-radius);
+        color: var(--ink);
+        outline: none;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font: var(--text-copy-13--font-weight) var(--text-copy-13)/var(--menu-row) var(--font-sans);
+        transition: background-color var(--t-base) var(--ease-out);
+      }
+
+      select.ed-select option::checkmark {
+        position: absolute;
+        inset-block-start: 0;
+        inset-inline-end: var(--select-option-inset);
+      }
+
+      select.ed-select > option:last-child,
+      select.ed-select > optgroup:last-child > option:last-child {
+        margin-block-end: 0;
+      }
+
+      select.ed-select option:checked {
+        background-color: var(--pad-pressed);
+      }
+
+      @media (hover: hover) {
+        select.ed-select option:enabled:hover:not(:checked) {
+          background-color: var(--pad-hover);
+          transition-duration: 0s;
+        }
+      }
+
+      :where(:root:not([data-focus-input="pointer"])) select.ed-select option:focus-visible:not(:checked) {
+        background-color: var(--pad-hover);
+        transition-duration: 0s;
+      }
+
+      :where(:root:not([data-focus-input="pointer"])) select.ed-select option:focus-visible,
+      :where(:root[data-focus-input="keyboard"]) select.ed-select option:focus {
+        outline: var(--focus-width) solid var(--ink);
+        outline-offset: calc(-1 * var(--focus-width));
+      }
+
+      :where(:root[data-focus-input="keyboard"]) select.ed-select option:focus:not(:checked) {
+        background-color: var(--pad-hover);
+      }
+
+      /* The full label is also readable when a keyboard user focuses a truncated option. */
+      :where(:root:not([data-focus-input="pointer"])) select.ed-select:open option[data-ed-overflow]:focus-visible,
+      :where(:root[data-focus-input="keyboard"]) select.ed-select:open option[data-ed-overflow]:focus {
+        anchor-name: --ed-select-focused-option;
+
+        &::after {
+          content: attr(title) / "";
+          position: fixed;
+          z-index: 1;
+          position-anchor: --ed-select-focused-option;
+          position-area: block-end span-all;
+          position-try-fallbacks: flip-block;
+          justify-self: anchor-center;
+          inline-size: max-content;
+          max-inline-size: min(var(--tooltip-max-width), 100vi - 2 * var(--sp-4));
+          box-sizing: border-box;
+          padding: var(--tooltip-padding-y) var(--tooltip-padding-x);
+          border: var(--hairline) solid var(--line);
+          border-radius: var(--radius);
+          background: var(--surface);
+          color: var(--ink);
+          box-shadow: var(--shadow-popover);
+          white-space: normal;
+          overflow-wrap: anywhere;
+          font: var(--text-label-12--font-weight) var(--text-label-12)/var(--text-label-12--line-height) var(--font-sans);
+          pointer-events: none;
+        }
+      }
+
+      select.ed-select option:disabled {
+        color: var(--disabled-ink);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        select.ed-select::picker(select),
+        select.ed-select option {
+          transition: none;
+        }
+      }
+    }
+  }
+
+  @media (forced-colors: active) {
+    select.ed-select,
+    select.ed-select:enabled:hover { border-color: CanvasText; }
+    select.ed-select:disabled { border-color: GrayText; }
+    select.ed-select:focus-visible { outline-color: Highlight; }
+    select.ed-select::picker(select) { border-color: CanvasText; }
+    /* A border preserves the chevron when the UA replaces backgrounds. */
+    select.ed-select::picker-icon {
+      box-sizing: border-box;
+      border-block-start: calc(var(--sp-2) - var(--hairline) * 2) solid currentColor;
+    }
+  }
+
+  .ed-tab-count {
+    /* A quantity of data - the data hue, not the label grey (Sergey 25-26.11: "цифры подсвеченные... как степень... Цвет другой"). */
+    color: var(--data-ink);
+    margin-inline-start: calc(var(--sp-1) / 2);
+    font: var(--text-label-11--font-weight) var(--text-label-11)/1 var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    display: inline-block;
+    translate: 0 -0.33em;
+  }
+  .ed-tab-count[data-tone="warning"] { color: var(--warning-ink); }
+  .ed-tab-count[data-tone="live"] { color: var(--live-ink); }
+  .ed-tab-count[data-tone="success"] { color: var(--success-ink); }
+
+  .ed-page-tools {
+    --ed-tools-h: var(--button-action);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    max-inline-size: 100%;
+  }
+  .ed-page-tools :is(label, .ed-tool-field) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+  .ed-page-tools :is(input:not([type="checkbox"], [type="radio"]), select, button, .ed-tool-action):not(.ed-table-columns *) {
+    box-sizing: border-box;
+    block-size: var(--ed-tools-h);
+  }
+  .ed-tool-action { display: inline-flex; align-items: center; }
+  .ed-search {
+    position: relative;
+    min-inline-size: 0;
+  }
+  .ed-search::before {
+    content: "";
+    position: absolute;
+    inset-inline-start: var(--sp-3);
+    inset-block-start: 50%;
+    inline-size: var(--icon-inline);
+    block-size: var(--icon-inline);
+    transform: translateY(-50%);
+    background-color: var(--ink-muted);
+    mask: radial-gradient(circle at 40% 40%, transparent 28%, black 32% 43%, transparent 47%),
+      linear-gradient(45deg, transparent 43%, black 46% 58%, transparent 61%) 100% 100% / 45% 45% no-repeat;
+    pointer-events: none;
+  }
+  .ed-search input {
+    inline-size: 100%;
+    border: var(--hairline) solid var(--line-field);
+    border-radius: var(--radius);
+    padding-inline: calc(var(--icon-inline) + var(--sp-5)) var(--sp-3);
+    background: var(--body);
+    color: var(--ink);
+    font: inherit;
+  }
+  .ed-search input::placeholder { color: var(--ink-muted); }
+  .ed-disclosure-content {
+    margin-inline-start: calc(var(--icon-default) + var(--sp-2));
+    font: inherit;
+  }
+  @media (pointer: coarse) {
+    .ed-page-tools { --ed-tools-h: var(--target-touch); }
+    .ed-page-tools :is(button, .ed-tool-action) { min-inline-size: var(--target-touch); }
+    .ed-page-tools input { font-size: var(--field-touch-font-size, 16px); }
+  }
+
+  /* Button - the first component of the language (1.26.0, 27.11.2026, corp/teams/design/CENTRAL-LANGUAGE.md).
+     One element for every web product: <ed-button variant size busy> around a native <button> or <a>. The look lives
+     here and needs no script; button.js only adds behaviour (busy, disabled link, default type). Light DOM, so a
+     product's own class on the inner control still applies, and the host takes no box (display: contents): the button
+     sits in its row exactly where a raw <button> sat. Sources: SkaiSoft `.soft(variant, size)`, sulimko.com
+     buttonVariants (five variants, sizes 28/32/40 from component.button), Polaris and Primer web components.
+     Variants set five properties on the host; the control reads them, so a brand changes colours, never selectors. */
+  ed-button {
+    display: contents;
+    --ed-button-line: var(--line-control);
+    --ed-button-fill: transparent;
+    --ed-button-ink: var(--ink);
+    --ed-button-hover: var(--pad-hover);
+    --ed-button-pressed: var(--pad-pressed);
+    --ed-button-hover-ink: var(--ed-button-ink);
+  }
+  ed-button[variant="primary"] {
+    --ed-button-line: transparent;
+    --ed-button-fill: var(--ink);
+    --ed-button-ink: var(--body);
+    --ed-button-hover: color-mix(in oklch, var(--ink) 85%, transparent);
+    --ed-button-pressed: color-mix(in oklch, var(--ink) 75%, transparent);
+  }
+  ed-button[variant="ghost"] {
+    --ed-button-line: transparent;
+    --ed-button-ink: var(--ink-secondary);
+    --ed-button-hover-ink: var(--ink);
+  }
+  ed-button[variant="destructive"] {
+    --ed-button-line: var(--live);
+    --ed-button-ink: var(--live-ink);
+    --ed-button-hover: var(--live-wash);
+    --ed-button-pressed: var(--live-wash);
+  }
+  ed-button[variant="live"] {
+    --ed-button-line: var(--live);
+    --ed-button-hover: var(--live-wash);
+    --ed-button-pressed: var(--live-wash);
+  }
+
+  ed-button > :is(button, a) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    box-sizing: border-box;
+    min-block-size: var(--button-action);
+    margin: 0;
+    padding-block: 0;
+    padding-inline: var(--sp-4);
+    border: var(--hairline) solid var(--ed-button-line);
+    border-radius: var(--radius);
+    background: var(--ed-button-fill);
+    color: var(--ed-button-ink);
+    font: var(--text-label-13--font-weight) var(--text-label-13)/var(--text-label-13--line-height) var(--font-sans);
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  ed-button > :is(button, a):hover { background: var(--ed-button-hover); color: var(--ed-button-hover-ink); }
+  ed-button > :is(button, a):active { background: var(--ed-button-pressed); color: var(--ed-button-hover-ink); }
+  ed-button > :is(button, a) svg { inline-size: var(--icon-default); block-size: var(--icon-default); flex-shrink: 0; }
+
+  /* Sizes: toolbar 28 (a control in a tool row), action 32 (default, an action on the page), main 40 (the one main
+     action, label 14), icon - a square toolbar control. The touch area grows independently of the glyph. */
+  ed-button[size="toolbar"] > :is(button, a) { min-block-size: var(--button-toolbar); padding-inline: var(--sp-3); }
+  ed-button[size="main"] > :is(button, a) {
+    min-block-size: var(--button-main);
+    font: var(--text-label-14--font-weight) var(--text-label-14)/var(--text-label-14--line-height) var(--font-sans);
+  }
+  ed-button[size="icon"] > :is(button, a) { inline-size: var(--button-toolbar); min-block-size: var(--button-toolbar); padding-inline: 0; }
+  @media (pointer: coarse) {
+    ed-button[size] > :is(button, a), ed-button > :is(button, a) {
+      min-block-size: var(--target-touch);
+      min-inline-size: var(--target-touch);
+    }
+  }
+
+  ed-button[variant="live"] > :is(button, a)::before {
+    content: "";
+    inline-size: var(--button-dot);
+    block-size: var(--button-dot);
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--live);
+  }
+
+  /* Disabled and busy: explicit state tokens, no pad, no hand. Busy is disabled for the pointer and the keyboard. */
+  ed-button > :is(button, a):is(:disabled, [aria-disabled="true"]) {
+    border-color: var(--disabled-line);
+    background: var(--disabled-fill);
+    color: var(--disabled-ink);
+    cursor: default;
+    pointer-events: none;
+  }
+  ed-button[variant="ghost"] > :is(button, a):is(:disabled, [aria-disabled="true"]) { border-color: transparent; background: transparent; }
+
+  /* Icon slot: an icon in [data-ed-icon] keeps its place while busy - the ring takes the slot, the width holds. */
+  ed-button [data-ed-icon] {
+    display: inline-grid;
+    place-items: center;
+    inline-size: var(--icon-default);
+    block-size: var(--icon-default);
+    flex-shrink: 0;
+  }
+  ed-button [data-ed-icon] > * { grid-area: 1 / 1; }
+  ed-button[busy] [data-ed-icon] > * { visibility: hidden; }
+  ed-button[busy] [data-ed-icon]::after,
+  ed-button[busy] > :is(button, a):not(:has([data-ed-icon]))::before {
+    content: "";
+    grid-area: 1 / 1;
+    box-sizing: border-box;
+    inline-size: var(--icon-default);
+    block-size: var(--icon-default);
+    flex-shrink: 0;
+    border: calc(var(--hairline) * 1.5) solid currentColor;
+    border-inline-end-color: transparent;
+    border-radius: 50%;
+    background: none;
+    animation: ed-button-spin var(--button-spin) linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    ed-button[busy] [data-ed-icon]::after,
+    ed-button[busy] > :is(button, a):not(:has([data-ed-icon]))::before { animation: none; }
+  }
+  @keyframes ed-button-spin { to { rotate: 1turn; } }
+
+  @media (forced-colors: active) {
+    ed-button > :is(button, a) { border-color: ButtonBorder; }
+    ed-button > :is(button, a):focus-visible { outline-color: Highlight; }
+    ed-button > :is(button, a):is(:disabled, [aria-disabled="true"]),
+    ed-button[variant="ghost"] > :is(button, a):is(:disabled, [aria-disabled="true"]) { border-color: GrayText; }
+    ed-button[variant="live"]:not([busy]) > :is(button, a)::before {
+      forced-color-adjust: none;
+      background: ButtonText;
+    }
+    ed-button[busy] [data-ed-icon]::after,
+    ed-button[busy] > :is(button, a):not(:has([data-ed-icon]))::before {
+      border-inline-end-style: none;
+    }
+  }
+
+  .ed-visually-hidden {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ed-section-header { color: var(--ink); }
+  .ed-section-identity {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+  }
+  .ed-section-title {
+    margin: 0;
+    min-inline-size: 0;
+    font: var(--text-heading-26--font-weight) var(--text-heading-26)/var(--text-heading-26--line-height) var(--font-sans);
+    letter-spacing: var(--text-heading-26--letter-spacing, normal);
+  }
+  .ed-section-count { flex: none; font-variant-numeric: tabular-nums; }
+  .ed-dot-numeral {
+    display: block;
+    inline-size: calc(var(--ed-dot-columns) * var(--dot-page-pitch));
+    block-size: calc(7 * var(--dot-page-pitch));
+    fill: currentColor;
+  }
+  .ed-section-tabs {
+    display: flex;
+    /* SkaiSoft TopTabItem rhythm (system specimen 26.11.2026): no gap, 8 px on each side of a label, no plate behind
+       the strip; a pinned strip gets its background from the page that pins it. */
+    gap: 0;
+    overflow-x: auto;
+    margin-block-start: var(--sp-2);
+    border-block-end: var(--hairline) solid var(--line);
+  }
+  .ed-section-tabs > a {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--button-action);
+    padding-inline: var(--sp-2);
+    border-radius: var(--radius-s) var(--radius-s) 0 0;
+    color: var(--ink-secondary);
+    font: var(--text-label-13--font-weight) var(--text-label-13)/var(--text-label-13--line-height) var(--font-sans);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .ed-section-tabs > a:hover { background: var(--pad-hover); }
+  /* Selected = bright text and the underline, no plate - SkaiSoft TopTabItem + designTabIndicator (26.11.2026,
+     Sergey: "подсветка серая появилась в реестрах... базовая проблема"). */
+  .ed-section-tabs > a:is([aria-current="page"], [aria-current="location"]) { color: var(--ink); }
+  .ed-section-tabs > a:is([aria-current="page"], [aria-current="location"])::after {
+    position: absolute;
+    inset: auto 0 0;
+    block-size: var(--tabs-indicator);
+    background: currentColor;
+    content: "";
+  }
+  .ed-page-tools > :is(.ed-tools-start, .ed-tools-end) {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-inline-size: 0;
+  }
+  .ed-page-tools > .ed-tools-end { margin-inline-start: auto; }
+  .ed-page-tools > .ed-tools-end:empty { display: none; }
+  .ed-process-dialog {
+    box-sizing: border-box;
+    inline-size: min(calc(100% - 2 * var(--sp-4)), var(--measure-data));
+    max-inline-size: 420px;
+    max-block-size: calc(100dvh - 2 * var(--sp-4));
+    margin: auto;
+    padding: var(--sp-4);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-l);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-popover);
+    font: var(--text-copy-13--font-weight) var(--text-copy-13)/var(--text-copy-13--line-height) var(--font-sans);
+  }
+  .ed-process-dialog::backdrop { background: transparent; }
+  .ed-process-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+  }
+  .ed-process-head h2 {
+    margin: 0;
+    font: var(--text-heading-18--font-weight) var(--text-heading-18)/var(--text-heading-18--line-height) var(--font-sans);
+  }
+  .ed-process-dialog p { margin: var(--sp-2) 0 0; }
+  .ed-process-dialog progress {
+    inline-size: 100%;
+    block-size: var(--sp-2);
+    margin-block-start: var(--sp-3);
+    accent-color: var(--ink);
+  }
+  .ed-process-dialog [data-ed-process-elapsed] {
+    color: var(--ink-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  .ed-process-dialog [data-ed-process-leave],
+  .ed-process-dialog [data-ed-process-next] { color: var(--ink-secondary); }
+  .ed-process[data-state="running"] [data-ed-process-open]::before {
+    flex: none;
+    inline-size: var(--sp-2);
+    block-size: var(--sp-2);
+    border-radius: 50%;
+    background: var(--live);
+    content: "";
+  }
+  .ed-process [data-ed-process-open] { display: inline-flex; align-items: center; gap: var(--sp-2); }
+  .ed-process[data-state="error"] [data-ed-process-detail] { color: var(--live-ink); }
+  [data-ed-process-clock] { color: var(--ink-secondary); font-variant-numeric: tabular-nums; }
+  .ed-process[data-state="running"] [data-ed-process-open] { position: relative; }
+  .ed-process[data-state="running"] [data-ed-process-open]::after {
+    position: absolute;
+    inset-block-end: 0;
+    inset-inline-start: var(--sp-2);
+    inline-size: min(var(--ed-process-progress), calc(100% - 2 * var(--sp-2)));
+    block-size: var(--hairline);
+    background: var(--ink);
+    content: "";
+  }
+  @media (forced-colors: active) {
+    .ed-process[data-state="running"] [data-ed-process-open]::before {
+      box-sizing: border-box;
+      border: calc(var(--sp-2) / 2) solid ButtonText;
+    }
+    .ed-process[data-state="running"] [data-ed-process-open]::after {
+      box-sizing: border-box;
+      border-block-end: var(--hairline) solid ButtonText;
+    }
+  }
+  @media (max-width: 600px) {
+    .ed-process-dialog {
+      inset-block-end: 0;
+      inline-size: 100%;
+      max-inline-size: 100%;
+      margin-block-end: 0;
+      padding-block-end: max(var(--sp-4), env(safe-area-inset-bottom));
+      border-end-start-radius: 0;
+      border-end-end-radius: 0;
+    }
+  }
+  @media (pointer: coarse) {
+    .ed-section-tabs > a,
+    [data-ed-process-open],
+    .ed-process-dialog :is(button, a) {
+      min-block-size: var(--target-touch);
+      min-inline-size: var(--target-touch);
+    }
+  }
+
+  .ed-section-tabs {
+    position: relative;
+    min-inline-size: 0;
+  }
+  .ed-section-tabs > :is(a, [role="tab"], .ed-tab-more) { flex: none; }
+  .ed-section-tabs > :is([role="tab"], .ed-tab-more) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    min-block-size: var(--button-action);
+    padding-inline: var(--sp-2);
+    border: 0;
+    border-radius: var(--radius-s) var(--radius-s) 0 0;
+    background: transparent;
+    color: var(--ink-secondary);
+    font: var(--text-label-13--font-weight) var(--text-label-13)/var(--text-label-13--line-height) var(--font-sans);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .ed-section-tabs > :is([role="tab"], .ed-tab-more):hover { background: var(--pad-hover); }
+  .ed-section-tabs > :is([role="tab"][aria-selected="true"], .ed-tab-more[data-ed-current]) { color: var(--ink); }
+  .ed-section-tabs[data-ed-tab-overflow] { scrollbar-width: none; }
+  .ed-section-tabs[data-ed-tabs-mounted] { overflow: clip; }
+  .ed-section-tabs[data-ed-tabs-mounted] > a::after { content: none; }
+  .ed-section-tabs > [data-ed-tab-omitted],
+  .ed-section-tabs:not([data-ed-overflowing]) > .ed-tab-more {
+    position: absolute;
+    visibility: hidden;
+  }
+  .ed-section-tabs > .ed-tab-indicator {
+    position: absolute;
+    inset-block-end: 0;
+    left: 0;
+    inline-size: 1px;
+    block-size: var(--tabs-indicator);
+    background: var(--ink);
+    transform: translateX(var(--ed-tab-indicator-offset, 0px)) scaleX(var(--ed-tab-indicator-width, 0));
+    transform-origin: left;
+    pointer-events: none;
+  }
+  .ed-section-tabs[data-ed-tabs-positioned] > .ed-tab-indicator {
+    transition: transform var(--t-exit) var(--ease-exit);
+  }
+  .ed-tab-more::after {
+    content: "";
+    margin-inline-start: var(--sp-1);
+    inline-size: var(--sp-1);
+    block-size: var(--sp-1);
+    border: solid currentColor;
+    border-width: 0 var(--hairline) var(--hairline) 0;
+    transform: translateY(-25%) rotate(45deg);
+  }
+  .ed-tab-overflow-menu {
+    box-sizing: border-box;
+    inset: auto;
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-inline, flip-block, flip-block flip-inline;
+    margin: var(--sp-1) 0 0;
+    max-inline-size: calc(100vw - var(--sp-6));
+    max-block-size: min(50dvh, calc(var(--menu-row) * 8.5 + var(--sp-2)));
+    overflow: auto;
+    padding: var(--sp-1);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-popover);
+  }
+  .ed-tab-overflow-menu:popover-open { display: grid; }
+  .ed-tab-overflow-menu > [role="menuitem"] {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--menu-row);
+    padding-inline: var(--sp-2);
+    border: 0;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    text-align: start;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .ed-tab-overflow-menu > [role="menuitem"]:is(:hover, :focus-visible) { background: var(--pad-hover); }
+  .ed-tab-overflow-menu > [role="menuitem"][aria-current] { background: var(--pad-pressed); }
+  @media (pointer: coarse) {
+    .ed-section-tabs > :is([role="tab"], .ed-tab-more),
+    .ed-tab-overflow-menu > [role="menuitem"] {
+      min-block-size: var(--target-touch);
+      min-inline-size: var(--target-touch);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ed-section-tabs[data-ed-tabs-positioned] > .ed-tab-indicator { transition: none; }
+  }
+
+  /* 4.6: The overlay belongs inside the only scroll frame, clear of its border. */
+  @supports (timeline-scope: --ed-scroll-block) and (animation-range: 0px min(100%, 12px)) {
+    :is([data-ed-native-fades], .ed-table-frame) {
+      timeline-scope: --ed-scroll-block, --ed-scroll-inline;
+    }
+    :is([data-ed-fade-scrollport], .ed-table-scroll) {
+      scroll-timeline: --ed-scroll-block block, --ed-scroll-inline inline;
+    }
+    @keyframes ed-scroll-edge {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    :is([data-ed-native-fades], .ed-table-frame) > .ed-scroll-fade {
+      animation: ed-scroll-edge 1ms linear both;
+    }
+    :is([data-ed-native-fades], .ed-table-frame) > .ed-scroll-fade[data-edge^="block"] {
+      animation-timeline: --ed-scroll-block;
+    }
+    :is([data-ed-native-fades], .ed-table-frame) > .ed-scroll-fade[data-edge^="inline"] {
+      animation-timeline: --ed-scroll-inline;
+    }
+    :is([data-ed-native-fades], .ed-table-frame) > .ed-scroll-fade[data-edge="block-start"] {
+      animation-range: 0px min(100%, var(--ed-fade-size, var(--sp-3)));
+    }
+    :is([data-ed-native-fades], .ed-table-frame) > .ed-scroll-fade[data-edge="block-end"] {
+      animation-direction: reverse;
+      animation-range: max(0%, calc(100% - var(--ed-fade-size, var(--sp-3)))) 100%;
+    }
+    :is([data-ed-native-fades], .ed-table-frame) > .ed-scroll-fade[data-edge="inline-start"] {
+      animation-range: 0px min(100%, var(--ed-fade-inline-size, var(--ed-fade-size, var(--sp-3))));
+    }
+    :is([data-ed-native-fades], .ed-table-frame) > .ed-scroll-fade[data-edge="inline-end"] {
+      animation-direction: reverse;
+      animation-range: max(0%, calc(100% - var(--ed-fade-inline-size, var(--ed-fade-size, var(--sp-3))))) 100%;
+    }
+  }
+  .ed-scroll-fade {
+    position: absolute;
+    z-index: 5;
+    pointer-events: none;
+  }
+  .ed-scroll-fade[data-edge="block-start"] {
+    inset: var(--ed-fade-top, 0px) 0 auto;
+    block-size: var(--ed-fade-size, var(--sp-3));
+    background: linear-gradient(var(--ed-fade-color, var(--body)), transparent);
+    opacity: var(--ed-fade-block-start, 0);
+  }
+  .ed-scroll-fade[data-edge="block-end"] {
+    inset: auto 0 var(--ed-fade-bottom, 0px);
+    block-size: var(--ed-fade-size, var(--sp-3));
+    background: linear-gradient(transparent, var(--ed-fade-color, var(--body)));
+    opacity: var(--ed-fade-block-end, 0);
+  }
+  .ed-scroll-fade[data-edge^="inline"] {
+    inset-block: var(--ed-fade-top, 0px) var(--ed-fade-bottom, 0px);
+    inline-size: var(--ed-fade-inline-size, var(--ed-fade-size, var(--sp-3)));
+  }
+  .ed-scroll-fade[data-edge="inline-start"] {
+    inset-inline-start: 0;
+    background: linear-gradient(var(--ed-fade-inline-direction, to right), var(--ed-fade-color, var(--body)), transparent);
+    opacity: var(--ed-fade-inline-start, 0);
+  }
+  .ed-scroll-fade[data-edge="inline-end"] {
+    inset-inline-end: 0;
+    background: linear-gradient(var(--ed-fade-inline-direction, to right), transparent, var(--ed-fade-color, var(--body)));
+    opacity: var(--ed-fade-inline-end, 0);
+  }
+  .ed-scroll-fade:dir(rtl) { --ed-fade-inline-direction: to left; }
+
+  .ed-table-module {
+    --ed-table-row: var(--row-h-regular);
+    --ed-table-gap: var(--sp-3);
+    --ed-table-body-inset: var(--sp-3);
+    --ed-table-ear: var(--sp-4);
+    --ed-table-head: var(--table-header-h);
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    margin-block: var(--ed-table-gap);
+    color: var(--ink);
+    font: var(--text-copy-13--font-weight) var(--text-copy-13)/var(--text-copy-13--line-height) var(--font-sans);
+  }
+  .ed-table-module[data-density="compact"] { --ed-table-row: var(--row-h-condensed); }
+  .ed-table-module[data-ed-small] {
+    inline-size: fit-content;
+    min-inline-size: min(280px, 100%);
+    max-inline-size: min(560px, 100%);
+  }
+  .ed-table-module > .ed-page-tools { margin-block-end: var(--sp-2); }
+  .ed-table-frame {
+    --ed-table-foot: 0px;
+    --ed-fade-top: var(--ed-table-head);
+    --ed-fade-bottom: var(--ed-table-foot);
+    --ed-fade-inline-size: var(--sp-8);
+    --ed-table-pin-fade-direction: to right;
+    --ed-table-pin-line-offset: var(--hairline);
+    position: relative;
+    isolation: isolate;
+    box-sizing: border-box;
+    min-inline-size: 0;
+    overflow: clip;
+    background: var(--body);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-l);
+  }
+  .ed-table-frame:dir(rtl) {
+    --ed-table-pin-fade-direction: to left;
+    --ed-table-pin-line-offset: calc(-1 * var(--hairline));
+  }
+  .ed-table-frame[data-ed-total] { --ed-table-foot: var(--ed-table-row); }
+  .ed-table-scroll {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-padding-block: var(--ed-table-head) calc(var(--ed-table-foot) + var(--ed-table-body-inset));
+
+  }
+  .ed-table-module:not([data-ed-small]) .ed-table-scroll { container-type: inline-size; }
+  .ed-table-scroll[data-ed-pin-first] { scroll-padding-inline-start: min(50%, 24rem); }
+  [data-ed-window] .ed-table-scroll {
+    scrollbar-gutter: stable;
+    max-block-size: max(
+      calc(var(--ed-table-head) + var(--ed-table-foot) + var(--ed-table-row)),
+      calc(100dvh - var(--ed-table-pin-top, 0px) - var(--hairline) * 2 - env(safe-area-inset-bottom, 0px))
+    );
+  }
+  .ed-table-scroll > [data-ed-table] {
+    border-collapse: separate;
+    border-spacing: 0;
+    inline-size: max-content;
+    min-inline-size: 100%;
+    table-layout: auto;
+  }
+  [data-ed-table] col.ed-table-tail { inline-size: 100%; }
+  [data-ed-table] :is(col, th, td)[hidden] { display: none; }
+
+  /* Shadows sit on the scrollport, with local covers that move away from each end. */
+  @supports not ((timeline-scope: --ed-scroll-inline) and (animation-range: 0px min(100%, 12px))) {
+    .ed-table-scroll {
+      --ed-table-fade-color: color-mix(in srgb, var(--ink) 18%, transparent);
+      background:
+        linear-gradient(to right, var(--body), transparent) left center / var(--sp-8) 100%,
+        linear-gradient(to left, var(--body), transparent) right center / var(--sp-8) 100%,
+        linear-gradient(to right, var(--ed-table-fade-color), transparent) left center / var(--sp-4) 100%,
+        linear-gradient(to left, var(--ed-table-fade-color), transparent) right center / var(--sp-4) 100%;
+      background-attachment: local, local, scroll, scroll;
+      background-repeat: no-repeat;
+    }
+    .ed-table-scroll > [data-ed-table] tbody tr:not([data-ed-selected], [data-ed-group], :hover, :focus-within) > :not([data-ed-first]) {
+      --ed-table-cell: transparent;
+    }
+  }
+  @supports (anchor-scope: --ed-table-port) and (inset-inline-end: anchor-size(--ed-table-port inline)) {
+    .ed-table-frame { anchor-scope: --ed-table-port; }
+    .ed-table-scroll::before {
+      content: "";
+      display: block;
+      block-size: 0;
+      anchor-name: --ed-table-port;
+    }
+    .ed-table-frame > .ed-scroll-fade:is([data-edge^="block"], [data-edge="inline-end"]) {
+      inset-inline-end: calc(100% - anchor-size(--ed-table-port inline, 100%));
+    }
+  }
+  .ed-table-sr-only {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .ed-table-scroll > [data-ed-table] :is(th, td) {
+    box-sizing: border-box;
+    height: var(--ed-table-row);
+    --ed-cell-start: var(--sp-3);
+    --ed-cell-end: var(--sp-3);
+    --ed-cell-pads: calc(var(--ed-cell-start) + var(--ed-cell-end));
+    --ed-column-limit: var(--ed-width, 24rem);
+    --ed-cell-limit: max(0px, calc(var(--ed-user-width, var(--ed-column-limit)) - var(--ed-cell-pads)));
+    padding-block: 0;
+    padding-inline: var(--ed-cell-start) var(--ed-cell-end);
+    border-block-end: var(--hairline) solid var(--line);
+    background: var(--ed-table-cell, var(--body));
+    color: var(--ink);
+    text-align: start;
+    white-space: nowrap;
+    overflow: visible;
+    font: inherit;
+    transition: none;
+  }
+  @supports (inline-size: calc(attr(data-width type(<number>), 0) * 1px)) {
+    [data-ed-table] [data-width] { --ed-width: calc(attr(data-width type(<number>)) * 1px); }
+    [data-ed-table] thead [data-min-width] { --ed-min-width: calc(attr(data-min-width type(<number>)) * 1px); }
+  }
+  .ed-table-scroll > [data-ed-table] [data-ed-first] {
+    position: relative;
+    --ed-cell-start: var(--ed-table-ear);
+  }
+  .ed-table-scroll[data-ed-pin-first] > [data-ed-table] [data-ed-first] {
+    position: sticky;
+    inset-inline-start: 0;
+    z-index: 2;
+  }
+  .ed-table-scroll[data-ed-pin-first] { --ed-pin-cap: 50cqi; }
+  .ed-table-module[data-ed-small] .ed-table-scroll[data-ed-pin-first] {
+    --ed-pin-cap: calc(min(140px, 50cqi) - var(--hairline));
+  }
+  .ed-table-scroll[data-ed-pin-first] > [data-ed-table] [data-ed-first] {
+    --ed-column-limit: min(var(--ed-width, 24rem), var(--ed-pin-cap));
+    --ed-cell-limit: max(0px, calc(min(var(--ed-user-width, var(--ed-column-limit)), var(--ed-pin-cap)) - var(--ed-cell-pads)));
+  }
+  .ed-table-frame:has(> .ed-table-scroll[data-ed-pin-first]) > .ed-scroll-fade[data-edge="inline-start"] { display: none; }
+  @supports (animation-timeline: scroll(inline)) and (animation-range: 0px min(100%, 12px)) {
+    .ed-table-scroll[data-ed-pin-first] > [data-ed-table] [data-ed-first]::after {
+      content: "";
+      position: absolute;
+      inset-block: 0 var(--hairline);
+      inset-inline-start: 100%;
+      inline-size: var(--sp-3);
+      background: var(--ed-table-cell, var(--body));
+      box-shadow: inset var(--ed-table-pin-line-offset) 0 var(--line-strong);
+      mask-image: linear-gradient(var(--ed-table-pin-fade-direction), black, transparent);
+      pointer-events: none;
+      opacity: 0;
+      animation: ed-scroll-edge 1ms linear both;
+      animation-timeline: scroll(inline);
+      animation-range: 0px min(100%, var(--sp-3));
+    }
+  }
+  .ed-table-scroll > [data-ed-table] [data-ed-last] { --ed-cell-end: var(--ed-table-ear); }
+  .ed-table-scroll > [data-ed-table] .ed-table-tail { padding-inline: 0; }
+  .ed-table-scroll > [data-ed-table] thead th:not(.ed-table-tail) {
+    min-inline-size: var(--ed-user-width, var(--ed-min-width, 0px));
+  }
+  .ed-table-scroll[data-ed-pin-first] thead th[data-ed-first] {
+    min-inline-size: min(var(--ed-user-width, var(--ed-min-width, 0px)), var(--ed-pin-cap));
+  }
+  .ed-table-scroll > [data-ed-table] .ed-table-align-end { text-align: end; }
+  .ed-table-scroll > [data-ed-table] :is(.ed-table-number, .ed-table-tabular) {
+    font-variant-numeric: tabular-nums;
+  }
+  .ed-table-scroll > [data-ed-table] .ed-table-number {
+    font: var(--text-mono-number--font-weight) var(--text-mono-number)/var(--text-mono-number--line-height) var(--font-mono);
+    font-stretch: 87.5%;
+  }
+  /* Room after the last row only where rows scroll inside the frame; a short table ends at its last row
+     (system specimen 26.11.2026: SkaiSoft and sulimko.com tables have no empty band). */
+  [data-ed-window] .ed-table-scroll > [data-ed-table] tbody:last-of-type::after {
+    content: "";
+    display: table-row;
+    block-size: var(--ed-table-body-inset);
+  }
+  .ed-table-value {
+    display: block;
+    max-inline-size: var(--ed-cell-limit);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ed-table-scroll [data-ed-first] :is(.ed-table-value, .ed-table-heading) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .ed-table-scroll [data-ed-first] :is(.ed-table-identity, .ed-table-sort, .ed-table-heading) {
+    max-inline-size: var(--ed-cell-limit);
+  }
+  .ed-table-scroll [data-ed-first] :is(.ed-table-identity, .ed-table-value, .ed-table-value-trigger, .ed-table-heading, .ed-table-sort) {
+    inline-size: max-content;
+  }
+  .ed-table-scroll thead [data-ed-first] > .ed-table-heading {
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .ed-table-scroll [data-ed-first] .ed-table-sort-mark { flex: none; }
+  .ed-table-identity { min-inline-size: 0; }
+  .ed-row-actions {
+    position: absolute;
+    inset-block: 0 var(--hairline);
+    inset-inline-end: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    padding-inline: var(--sp-3) var(--sp-2);
+    background: var(--ed-table-cell, var(--body));
+    mask-image: linear-gradient(var(--ed-table-pin-fade-direction), transparent, black var(--sp-2));
+    opacity: 0;
+    pointer-events: none;
+  }
+  [data-ed-table] tr:focus-within .ed-row-actions,
+  .ed-row-actions:has(:popover-open) { opacity: 1; pointer-events: auto; }
+  @media (hover: hover), (pointer: none) {
+    [data-ed-table] tr:hover .ed-row-actions { opacity: 1; pointer-events: auto; }
+  }
+  @media (pointer: coarse) {
+    .ed-table-identity { display: flex; align-items: center; gap: var(--sp-2); }
+    .ed-table-identity > :is(.ed-table-value, .ed-table-value-trigger) {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .ed-row-actions {
+      position: static;
+      padding: 0;
+      mask-image: none;
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .ed-row-actions > :is(button, a) {
+      min-block-size: var(--target-touch);
+      min-inline-size: var(--target-touch);
+    }
+  }
+  .ed-row-actions > :popover-open { pointer-events: auto; }
+  /* The row name reads in the body weight, as in SkaiSoft and sulimko.com tables (system specimen 26.11.2026). */
+  .ed-table-scroll > [data-ed-table] tbody th[scope="row"] { font-weight: var(--text-copy-13--font-weight); }
+  .ed-table-scroll > [data-ed-table] tbody tr:last-child > :is(th, td) { border-block-end: 0; }
+  .ed-table-scroll > [data-ed-table] tbody + tbody > tr:first-child > :is(th, td) { border-block-start: var(--hairline) solid var(--line); }
+  .ed-table-scroll > [data-ed-table] tbody tr[data-ed-selected] {
+    --ed-table-cell: linear-gradient(var(--pad-pressed), var(--pad-pressed)), var(--body);
+  }
+  .ed-table-scroll > [data-ed-table] tbody tr[data-ed-selected] > [data-ed-first]::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    border-inline-start: var(--hairline) solid var(--ink);
+  }
+  html:not([data-focus-input="pointer"]) .ed-table-scroll > [data-ed-table] tbody tr:not([data-ed-group], [data-ed-selected]):has(:focus-visible) {
+    --ed-table-cell: var(--fill-hover);
+  }
+  @media (hover: hover), (pointer: none) {
+    .ed-table-scroll:hover::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb); }
+    .ed-table-scroll::-webkit-scrollbar-thumb:hover {
+      background-color: var(--scroll-thumb-hover);
+      border-width: calc((var(--scrollbar-track-width) - var(--scrollbar-thumb-hover-width)) / 2);
+    }
+    .ed-table-scroll > [data-ed-table] tbody tr:not([data-ed-group], [data-ed-selected]):hover { --ed-table-cell: var(--fill-hover); }
+    .ed-table-scroll > [data-ed-table] tbody tr[data-ed-selected]:hover {
+      --ed-table-cell: linear-gradient(var(--pad-hover), var(--pad-hover)), linear-gradient(var(--pad-pressed), var(--pad-pressed)), var(--body);
+    }
+  }
+  .ed-table-scroll > [data-ed-table] tbody tr[data-ed-group] > :is(th, td),
+  .ed-table-scroll > [data-ed-table] tbody tr[data-ed-group]:hover > :is(th, td) {
+    background: var(--fill);
+    font-weight: var(--text-heading-15--font-weight);
+  }
+  .ed-table-group-name {
+    position: sticky;
+    inset-inline-start: var(--ed-table-ear);
+    inline-size: max-content;
+    max-inline-size: min(var(--ed-cell-limit), calc(100cqi - 2 * var(--ed-table-ear)));
+  }
+  .ed-table-scroll > [data-ed-table] thead th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 6;
+    height: var(--ed-table-head);
+    --ed-table-cell: var(--fill);
+    /* A heading labels the column in the secondary ink, as SkaiSoft and sulimko.com do (system specimen 26.11.2026). */
+    color: var(--ink-secondary);
+    font: var(--text-label-12--font-weight) var(--text-label-12)/var(--text-label-12--line-height) var(--font-sans);
+  }
+  .ed-table-scroll > [data-ed-table] tfoot :is(th, td) {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 6;
+    border-block-end: 0;
+    border-block-start: var(--hairline) solid var(--line);
+    --ed-table-cell: var(--fill);
+    font-weight: var(--text-heading-15--font-weight);
+  }
+  .ed-table-scroll > [data-ed-table] tfoot [data-ed-first]::after { inset-block: var(--hairline) 0; }
+  .ed-table-scroll[data-ed-pin-first] > [data-ed-table] :is(thead, tfoot) [data-ed-first] { z-index: 7; }
+
+  .ed-table-sort, .ed-table-value-trigger, .ed-table-resize, .ed-table-column-move {
+    color: inherit;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    font: inherit;
+  }
+  .ed-table-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    min-block-size: calc(var(--ed-table-head) - var(--hairline));
+    cursor: pointer;
+  }
+  .ed-table-sort-mark {
+    inline-size: var(--icon-inline);
+    text-align: center;
+    color: var(--ink-muted);
+  }
+  /* The mark answers the pointer and names the sorted column; a resting heading is a word only (system specimen
+     26.11.2026: SkaiSoft and sulimko.com headings carry no marks at rest). A touch screen keeps the mark. */
+  @media (hover: hover) {
+    .ed-table-sort:not(:hover, :focus-visible) .ed-table-sort-mark { visibility: hidden; }
+    [aria-sort] > .ed-table-sort .ed-table-sort-mark { visibility: visible; }
+  }
+  [data-ed-table] .ed-table-align-end .ed-table-sort { position: relative; }
+  [data-ed-table] .ed-table-align-end .ed-table-sort-mark {
+    position: absolute;
+    inset-inline-start: 100%;
+    inline-size: var(--sp-2);
+    margin-inline-start: 2px;
+  }
+  .ed-table-sort-mark::before { content: "↕"; }
+  [aria-sort] > .ed-table-sort .ed-table-sort-mark { color: var(--ink); }
+  [aria-sort="ascending"] > .ed-table-sort .ed-table-sort-mark::before { content: "↑"; }
+  [aria-sort="descending"] > .ed-table-sort .ed-table-sort-mark::before { content: "↓"; }
+  .ed-table-resize {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    inline-size: var(--sp-2);
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .ed-table-resize:hover, .ed-table-resize:focus-visible { background: var(--pad-hover); }
+  .ed-table-value-trigger {
+    display: block;
+    max-inline-size: var(--ed-cell-limit);
+    text-align: inherit;
+    cursor: pointer;
+  }
+  .ed-table-value-trigger, .ed-table-value a { interest-delay: var(--tooltip-open) var(--tooltip-close); }
+
+  .ed-table-control {
+    block-size: var(--ed-tools-h, var(--button-action));
+    padding-inline: var(--sp-3);
+    border: var(--hairline) solid var(--line-control);
+    border-radius: var(--radius);
+    background: var(--body);
+    color: var(--ink);
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .ed-table-control:hover, .ed-table-column-move:hover { background: var(--pad-hover); }
+  .ed-table-control:has(+ :popover-open) { background: var(--pad-pressed); }
+
+  @media (forced-colors: active) {
+    .ed-table-frame,
+    .ed-table-scroll > [data-ed-table] :is(th, td) { border-color: CanvasText; }
+    .ed-table-control { border-color: ButtonBorder; }
+    .ed-table-control:focus-visible,
+    .ed-table-sort:focus-visible { outline-color: Highlight; }
+    .ed-table-scroll > [data-ed-table] tbody tr[data-ed-selected] > [data-ed-first]::before {
+      border-inline-start: var(--focus-width) solid Highlight;
+    }
+  }
+  .ed-table-columns,
+  .ed-tooltip {
+    inset: auto;
+    position-area: block-end span-inline-end;
+    position-try-fallbacks: flip-inline, flip-block, flip-block flip-inline;
+    margin: var(--sp-1);
+    max-inline-size: min(var(--tooltip-max-width), calc(100vw - var(--sp-8)));
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .ed-table-columns {
+    box-sizing: border-box;
+    max-inline-size: calc(100vw - var(--sp-8));
+    padding: var(--sp-2);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-popover);
+  }
+  .ed-table-column-list {
+    display: grid;
+    gap: var(--sp-1);
+    margin: 0 0 var(--sp-2);
+    max-block-size: min(50dvh, calc(var(--control-h) * 8.5));
+    overflow: auto;
+    padding: 0;
+    list-style: none;
+  }
+  .ed-table-column-option {
+    display: flex;
+    gap: var(--sp-1);
+    align-items: center;
+    min-block-size: var(--control-h);
+    border-radius: var(--radius);
+  }
+  .ed-table-column-option:hover { background: var(--pad-hover); }
+  .ed-table-column-option:has(:checked) { background: var(--pad-pressed); }
+  .ed-table-column-option label {
+    flex: 1;
+    display: flex;
+    gap: var(--sp-2);
+    align-items: center;
+    padding-inline: var(--sp-2);
+  }
+  .ed-table-column-move {
+    inline-size: var(--control-h);
+    block-size: var(--control-h);
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+  .ed-table-column-move[aria-disabled="true"] { color: var(--ink-muted); cursor: default; }
+  @media (pointer: coarse) {
+    .ed-table-column-option label,
+    .ed-table-column-move,
+    .ed-table-value-trigger {
+      min-inline-size: var(--target-touch);
+      min-block-size: var(--target-touch);
+    }
+    .ed-table-sort {
+      min-inline-size: var(--target-touch);
+      min-block-size: var(--target-touch);
+      margin-block-end: calc(-1 * var(--hairline));
+    }
+    .ed-table-resize { inline-size: var(--sp-3); }
+  }
+
+  @media (max-width: 767px), (pointer: coarse) {
+    .ed-table-module,
+    .ed-table-module[data-density="compact"] { --ed-table-row: var(--row-h-relaxed); }
+  }
+  /* A code value (a model id, a key) - mono, as SkaiSoft `.monoCaption` and sulimko.com `font-mono` cells. */
+  .ed-table-scroll > [data-ed-table] .ed-table-code { font-family: var(--font-mono); font-size: var(--text-copy-12); font-stretch: calc(var(--font-mono-width) * 1%); }
+
+  /* Rows by content (`data-ed-rows="content"`, CORP-703; Sergey 22.11: points in a cell, one under another). A body row
+     grows to its tallest cell; a cell keeps the row height as its minimum and starts its first line where a one-line row
+     puts it; text wraps at the column cap (`data-width`, 24rem without one); a list stacks its items. The head stays one
+     line. Without the mode a cell is one line with an ellipsis and the full text in a tooltip. */
+  .ed-table-scroll > [data-ed-table][data-ed-rows="content"] tbody :is(th, td) {
+    vertical-align: top;
+    padding-block: calc((var(--ed-table-row) - var(--text-copy-13--line-height) - var(--hairline)) / 2);  /* the row line belongs to the row height */
+  }
+  .ed-table-scroll > [data-ed-table][data-ed-rows="content"] tbody .ed-table-value {
+    /* One line up to the cap, then wrap: max-content keeps a short column as wide as its line instead of letting the
+       table squeeze every column toward its longest word. */
+    inline-size: max-content;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  /* A number never breaks: it keeps one line and its ellipsis, as without the mode. */
+  .ed-table-scroll > [data-ed-table][data-ed-rows="content"] tbody :is(.ed-table-number, .ed-table-tabular, .ed-table-align-end) .ed-table-value {
+    inline-size: auto;  /* the cell's end alignment moves the text, not a max-content box */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ed-table-scroll > [data-ed-table][data-ed-rows="content"] tbody .ed-table-value :is(ul, ol) {
+    margin: 0;
+    padding-inline-start: var(--sp-4);
+  }
+  .ed-table-scroll > [data-ed-table][data-ed-rows="content"] tbody .ed-table-value :is(p, div) { margin: 0; }
+
+  /* Native fields and pressed buttons. The product owns the value and filter state. */
+  .ed-field {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    min-block-size: var(--target-pointer);
+    padding: 0 var(--sp-3);
+    border: var(--hairline) solid var(--line-field);
+    border-radius: var(--radius);
+    background: var(--body);
+    color: var(--ink);
+    font: var(--text-copy-13--font-weight) var(--text-copy-13)/var(--text-copy-13--line-height) var(--font-sans);
+  }
+  textarea.ed-field {
+    display: block;
+    inline-size: 100%;
+    padding-block: var(--sp-2);
+    resize: vertical;
+  }
+  .ed-field::placeholder { color: var(--ink-muted); }
+  .ed-field[aria-invalid="true"] { border-color: var(--live-ink); }
+  .ed-field:disabled {
+    background: var(--disabled-fill);
+    border-color: var(--disabled-line);
+    color: var(--disabled-ink);
+  }
+  .ed-check {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--target-pointer);
+    gap: var(--sp-2);
+  }
+  .ed-check > input {
+    inline-size: var(--icon-default);
+    block-size: var(--icon-default);
+    margin: 0;
+    accent-color: var(--ink);
+    flex: none;
+  }
+  .ed-check:has(input:disabled) { color: var(--disabled-ink); }
+
+  .ed-segment,
+  .ed-filter-rail {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: calc(var(--sp-1) / 2);
+    max-inline-size: 100%;
+    overflow-x: auto;
+  }
+  /* SkaiSoft DotSegmentedGroup: one hairline outline (separator = line) 28 tall with a 2 inset (hairline + 1),
+     chips 24 tall 2 apart, chip corner 8, outline corner 8 + 2 so the two stay concentric; the selected chip is a
+     fill only. */
+  .ed-segment {
+    gap: var(--sp-0-5);
+    padding: calc(var(--sp-0-5) - var(--hairline));
+    border: var(--hairline) solid var(--line);
+    border-radius: calc(var(--radius) + var(--sp-0-5));
+  }
+  .ed-segment > .ed-segment-option {
+    min-block-size: calc(var(--target-pointer) - 2 * var(--sp-0-5));
+    padding-inline: var(--sp-3);
+    border-radius: var(--radius);
+    font: var(--text-copy-13--font-weight) var(--text-copy-13)/var(--text-copy-13--line-height) var(--font-sans);
+  }
+  .ed-segment > .ed-segment-option[aria-pressed="true"] { border-color: transparent; }
+  .ed-filter-rail { gap: var(--sp-2); }
+  .ed-segment-option,
+  .ed-filter-chip {
+    box-sizing: border-box;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-1);
+    min-block-size: var(--target-pointer);
+    margin: 0;
+    padding: 0 var(--sp-2);
+    border: var(--hairline) solid transparent;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink-secondary);
+    font: var(--text-label-13--font-weight) var(--text-label-13)/var(--text-label-13--line-height) var(--font-sans);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .ed-filter-chip { border-color: var(--line-control); border-radius: var(--radius); }
+  .ed-segment-option[aria-pressed="true"],
+  .ed-filter-chip[aria-pressed="true"] {
+    border-color: var(--line-strong);
+    background: var(--pad-pressed);
+    color: var(--ink);
+  }
+  @media (hover: hover) {
+    .ed-field:enabled:hover { border-color: var(--line-strong); }
+    :is(.ed-segment-option, .ed-filter-chip):enabled:hover { background: var(--pad-hover); color: var(--ink); }
+    :is(.ed-segment-option, .ed-filter-chip)[aria-pressed="true"]:enabled:hover {
+      background: linear-gradient(var(--pad-hover), var(--pad-hover)), var(--pad-pressed);
+    }
+  }
+  :is(.ed-segment-option, .ed-filter-chip):disabled { color: var(--disabled-ink); cursor: default; }
+  @media (pointer: coarse) {
+    :is(.ed-field, .ed-search input) { min-block-size: var(--target-touch); font-size: var(--field-touch-font-size); }
+    :is(.ed-check, .ed-segment-option, .ed-filter-chip, .ed-segment > .ed-segment-option) { min-block-size: var(--target-touch); }
+    :is(.ed-segment-option, .ed-filter-chip) { min-inline-size: var(--target-touch); }
+  }
+  @media (forced-colors: active) {
+    :is(.ed-field, .ed-segment, .ed-filter-chip) { border-color: ButtonBorder; }
+    :is(.ed-segment-option, .ed-filter-chip, .ed-segment > .ed-segment-option)[aria-pressed="true"] { border-color: Highlight; }
+  }
+
+  /* Shared surfaces. Keep page grids, content dimensions and route state with the consumer. */
+  .ed-card,
+  .ed-data-state {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    padding: var(--sp-4);
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-l);
+    background: var(--body);
+    color: var(--ink);
+  }
+  .ed-card[href] { display: block; text-decoration: none; }
+  @media (hover: hover) {
+    .ed-card[href]:hover { border-color: var(--line-strong); background: var(--fill); }
+  }
+  .ed-data-state {
+    display: grid;
+    align-content: start;
+    gap: var(--sp-1);
+    color: var(--ink-secondary);
+  }
+  .ed-data-state > * { margin: 0; }
+  .ed-data-state > strong { color: var(--ink); }
+  .ed-data-state[data-state="error"] { border-color: var(--live-ink); }
+
+  .ed-breadcrumbs,
+  .ed-nav-list {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ed-breadcrumbs a { color: var(--ink-secondary); }
+  .ed-breadcrumbs [aria-current="page"] { color: var(--ink); }
+  .ed-nav-list { display: grid; }
+  .ed-nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-block-size: var(--target-pointer);
+    padding-inline: var(--sp-2);
+    border-radius: var(--radius);
+    color: var(--ink-secondary);
+    text-decoration: none;
+  }
+  .ed-nav-link[aria-current]:not([aria-current="false"]) { background: var(--pad-pressed); color: var(--ink); }
+  @media (hover: hover) {
+    .ed-nav-link:hover { background: var(--pad-hover); color: var(--ink); }
+    .ed-nav-link[aria-current]:not([aria-current="false"]):hover {
+      background: linear-gradient(var(--pad-hover), var(--pad-hover)), var(--pad-pressed);
+    }
+  }
+
+  .ed-disclosure > summary {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-block-size: var(--target-pointer);
+    border-radius: var(--radius);
+    color: var(--ink-secondary);
+    cursor: pointer;
+    list-style: none;
+  }
+  .ed-disclosure > summary::-webkit-details-marker { display: none; }
+  .ed-disclosure > summary > [data-ed-chevron] {
+    inline-size: var(--icon-default);
+    block-size: var(--icon-default);
+    flex: none;
+    transition: transform var(--t-base) var(--ease-out);
+  }
+  .ed-disclosure[open] > summary > [data-ed-chevron] { transform: rotate(90deg); }
+  .ed-disclosure > summary:hover { color: var(--ink); }
+  .ed-disclosure::details-content {
+    block-size: 0;
+    overflow: clip;
+    interpolate-size: allow-keywords;
+    transition: block-size var(--t-exit) var(--ease-exit), content-visibility var(--t-exit) allow-discrete;
+  }
+  .ed-disclosure[open]::details-content {
+    block-size: auto;
+    transition: block-size var(--t-panel) var(--ease-out), content-visibility var(--t-panel) allow-discrete;
+  }
+  @media (pointer: coarse) {
+    :is(.ed-disclosure > summary, .ed-nav-link) { min-block-size: var(--target-touch); }
+  }
+
+  .ed-rule {
+    display: block;
+    margin: 0;
+    border: 0;
+    border-block-start: var(--hairline) solid var(--line);
+  }
+  .ed-icon {
+    display: inline-block;
+    inline-size: var(--icon-default);
+    block-size: var(--icon-default);
+    flex: none;
+    vertical-align: middle;
+  }
+  .ed-icon[data-size="inline"] { inline-size: var(--icon-inline); block-size: var(--icon-inline); }
+  .ed-icon[data-size="empty"] { inline-size: var(--icon-empty); block-size: var(--icon-empty); }
+  .ed-icon[data-size="figure"] { inline-size: var(--icon-figure); block-size: var(--icon-figure); }
+  .ed-icon[data-stroke] { stroke: currentColor; stroke-width: var(--icon-stroke); fill: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ed-disclosure[open]::details-content,
+    .ed-disclosure::details-content,
+    .ed-disclosure > summary > [data-ed-chevron] { transition: none; }
+  }
+
+  /* SkaiSoft DotLattice on the chrome: a 1.2 dot every 10, centred in its cell, edge as sharp as a drawn ellipse.
+     The old 0.6 -> 1 px gradient painted a 2 px soft dot - larger and greyer than the app's. */
+  .ed-dot-lattice {
+    background-color: var(--chrome);
+    background-image: radial-gradient(circle at center, var(--lattice) calc(var(--dot-lattice-diameter) / 2),
+      transparent calc(var(--dot-lattice-diameter) / 2 + 0.25px));
+    background-size: var(--lattice-step) var(--lattice-step);
+  }
+
+  /* The browser owns the top layer, focus and dismissal. Interactive content belongs in a popover or dialog. */
+  .ed-popover,
+  .ed-dialog {
+    box-sizing: border-box;
+    max-inline-size: calc(100% - 2 * var(--sp-4));
+    max-block-size: calc(100dvh - 2 * var(--sp-4));
+    padding: var(--sp-4);
+    overflow: auto;
+    border: var(--hairline) solid var(--line);
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .ed-popover {
+    inset: auto;
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-inline, flip-block, flip-block flip-inline;
+    margin: var(--sp-1);
+    box-shadow: var(--shadow-popover);
+  }
+  .ed-menu {
+    min-inline-size: min(var(--menu-min-width), 100%);
+    padding: var(--menu-inset);
+  }
+  .ed-menu-item {
+    display: flex;
+    justify-content: start;
+    inline-size: 100%;
+    min-block-size: var(--menu-row);
+    margin: 0;
+    padding: 0 var(--sp-2);
+    border: 0;
+    border-radius: var(--menu-item-radius);
+    background: transparent;
+    color: var(--ink);
+    font: var(--text-label-13--font-weight) var(--text-label-13)/var(--text-label-13--line-height) var(--font-sans);
+    align-items: center;
+    text-align: start;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .ed-menu-item:hover { background: var(--pad-hover); }
+  .ed-menu-item[aria-current]:not([aria-current="false"]) { background: var(--pad-pressed); }
+  .ed-menu-item:disabled { color: var(--disabled-ink); cursor: default; }
+
+  .ed-dialog { box-shadow: var(--shadow-dialog); }
+  .ed-dialog::backdrop { background: var(--scrim); }
+  .ed-dialog[open][data-layout="pane"] {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    padding: 0;
+    overflow: hidden;
+  }
+  .ed-dialog-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-4);
+    border-block-end: var(--hairline) solid var(--line);
+  }
+  .ed-dialog-head > :is(h1, h2, h3) { flex: 1; margin: 0; }
+  .ed-dialog-body { overflow: auto; padding: var(--sp-4); }
+  @media (pointer: coarse) {
+    .ed-menu-item { min-block-size: var(--target-touch); }
+    .ed-dialog[data-layout="pane"] {
+      inset: auto 0 0;
+      margin: 0 auto;
+      inline-size: 100%;
+      max-inline-size: none;
+      max-block-size: calc(100dvh - var(--sp-4));
+      border-end-start-radius: 0;
+      border-end-end-radius: 0;
+    }
+    .ed-dialog-body { padding-block-end: max(var(--sp-4), env(safe-area-inset-bottom)); }
+  }
+
+  ed-hint { display: contents; }
+  .ed-hint-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: inherit;
+    min-block-size: var(--target-pointer);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-s);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    cursor: pointer;
+  }
+  .ed-hint-trigger:hover,
+  .ed-hint-trigger:has(+ :popover-open) { background: var(--pad-hover); }
+  .ed-hint-tooltip { margin: 0; white-space: pre-line; pointer-events: auto; }
+  @media (pointer: coarse) {
+    .ed-hint-trigger { min-block-size: var(--target-touch); min-inline-size: var(--target-touch); }
+  }
+  :is(.ed-popover, .ed-dialog, .ed-hint-tooltip) {
+    opacity: 0;
+    translate: 0 var(--sp-1);
+    transition: opacity var(--t-exit) var(--ease-exit), translate var(--t-exit) var(--ease-exit),
+      display var(--t-exit) allow-discrete, overlay var(--t-exit) allow-discrete;
+  }
+  :is(.ed-popover:popover-open, .ed-dialog[open], .ed-hint-tooltip:popover-open) {
+    opacity: 1;
+    translate: none;
+    transition-duration: var(--t-panel);
+    transition-timing-function: var(--ease-out);
+  }
+  @starting-style {
+    :is(.ed-popover:popover-open, .ed-dialog[open], .ed-hint-tooltip:popover-open) { opacity: 0; translate: 0 var(--sp-1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.ed-popover, .ed-dialog, .ed-hint-tooltip) { translate: none; transition: none; }
+  }
+
+  /* Keep the word visible. The mark conveys state by shape as well as color. */
+  .ed-badge,
+  .ed-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    color: var(--ink-secondary);
+  }
+  .ed-badge {
+    box-sizing: border-box;
+    min-block-size: var(--badge-height);
+    padding-inline: var(--sp-2);
+    border-radius: var(--badge-radius);
+    background: var(--fill);
+    font: var(--badge-font-weight) var(--badge-font-size)/var(--badge-height) var(--font-sans);
+    font-variant-numeric: tabular-nums;
+  }
+  .ed-badge[data-tone="outline"] {
+    border: var(--hairline) solid var(--line-control);
+    padding-inline: calc(var(--sp-2) - var(--hairline));
+    background: transparent;
+    line-height: calc(var(--badge-height) - 2 * var(--hairline));
+  }
+  .ed-status-mark {
+    box-sizing: border-box;
+    inline-size: var(--status-size);
+    block-size: var(--status-size);
+    flex: none;
+    border: var(--status-ring) solid currentColor;
+    border-radius: 50%;
+  }
+  .ed-status-mark[data-tone="ok"] { color: var(--ink); background: currentColor; }
+  .ed-status-mark[data-tone="warning"] {
+    color: var(--warning-ink);
+    border-width: var(--status-warning-ring);
+    background: radial-gradient(circle, currentColor calc(var(--status-centre-ratio) * 100%), transparent 0);
+  }
+  .ed-status-mark[data-tone="error"] {
+    color: var(--live-ink);
+    background: currentColor;
+    border: 0;
+    border-radius: 0;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  }
+  .ed-status-mark[data-tone="info"] { color: var(--data-ink); border-radius: 0; }
+  .ed-dot-track {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--progress-gap);
+  }
+  .ed-dot-track > span {
+    box-sizing: border-box;
+    inline-size: var(--progress-diameter);
+    block-size: var(--progress-diameter);
+    flex: none;
+    border: var(--progress-ring) solid var(--line-field);
+    border-radius: 50%;
+  }
+  .ed-dot-track > [data-filled] { border-color: currentColor; background: currentColor; }
+  .ed-meter {
+    position: relative;
+    display: inline-block;
+    inline-size: 100%;
+    block-size: var(--sp-1);
+    border-radius: var(--radius-s);
+    background: var(--line);
+    color: var(--ink-secondary);
+    vertical-align: middle;
+  }
+  :is(.ed-dot-track, .ed-meter)[data-tone="warning"] { color: var(--warning-ink); }
+  :is(.ed-dot-track, .ed-meter)[data-tone="error"] { color: var(--live-ink); }
+  .ed-meter-fill {
+    display: block;
+    inline-size: var(--ed-meter-fill, 0%);
+    block-size: 100%;
+    border-radius: inherit;
+    background: currentColor;
+  }
+  .ed-meter-mark {
+    position: absolute;
+    inset-inline-start: var(--ed-meter-mark);
+    inset-block: calc(-1 * var(--sp-1));
+    inline-size: var(--hairline);
+    background: var(--ink);
+  }
+  @media (forced-colors: active) {
+    .ed-status-mark,
+    .ed-meter,
+    .ed-dot-track { forced-color-adjust: none; color: CanvasText; }
+    .ed-status-mark[data-tone] { color: CanvasText; }
+    .ed-meter { background: GrayText; }
+    .ed-meter-mark { background: Highlight; }
+    .ed-dot-track > span { border-color: GrayText; }
+    .ed-dot-track > [data-filled] { border-color: CanvasText; }
+  }
+
+  .ed-chart-axis { fill: var(--ink-secondary); font: var(--text-copy-12--font-weight) var(--text-copy-12)/var(--text-copy-12--line-height) var(--font-sans); }
+  .ed-chart-guide { stroke: var(--line-control); stroke-width: var(--hairline); }
+  .ed-chart-line { fill: none; stroke: var(--ed-chart-series, var(--chart1)); stroke-width: var(--chart-stroke); }
+  .ed-chart-target {
+    fill: none;
+    stroke: var(--ed-chart-series, var(--ink-secondary));
+    stroke-width: var(--chart-target-stroke);
+    stroke-dasharray: var(--chart-target-dash) var(--chart-target-gap);
+  }
+
+  .ed-notice {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1) var(--sp-2);
+    color: var(--ink-secondary);
+    font: var(--text-copy-13--font-weight) var(--text-copy-13)/var(--text-copy-13--line-height) var(--font-sans);
+  }
+  .ed-notice[data-tone="warning"] { color: var(--warning-ink); }
+  .ed-notice[data-tone="error"] { color: var(--live-ink); }
+}
